@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Details - Support Ticket System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-gray-800">Ticket Details</h1>
+                </div>
+                <div class="flex items-center">
+                    <span id="userInfo" class="mr-4 text-gray-600"></span>
+                    <button onclick="goBack()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 mr-3">Back</button>
+                    <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <!-- Ticket Details -->
+        <div class="bg-white shadow rounded-lg mb-6">
+            <div class="px-4 py-5 sm:p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h2 id="ticketTitle" class="text-2xl font-bold text-gray-900 mb-4"></h2>
+                        <div class="space-y-4">
+                            <div>
+                                <span class="text-gray-500">Status:</span>
+                                <span id="ticketStatus" class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Priority:</span>
+                                <span id="ticketPriority" class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Created By:</span>
+                                <span id="ticketCreatedBy" class="ml-2 text-gray-900"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Assigned To:</span>
+                                <span id="ticketAssignedTo" class="ml-2 text-gray-900"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Created At:</span>
+                                <span id="ticketCreatedAt" class="ml-2 text-gray-900"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Description</h3>
+                        <p id="ticketDescription" class="text-gray-600 whitespace-pre-wrap"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div id="actionButtons" class="bg-white shadow rounded-lg mb-6">
+            <div class="px-4 py-5 sm:p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Actions</h3>
+                <div class="flex space-x-4">
+                    <div id="assignSection" class="hidden">
+                        <button onclick="showAssignModal()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            Assign Ticket
+                        </button>
+                    </div>
+                    <div id="statusSection" class="hidden">
+                        <select id="statusSelect" class="rounded border-gray-300 mr-2" onchange="updateStatus(this.value)">
+                            <option value="">Update Status</option>
+                            <option value="open">Open</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                    <div id="prioritySection" class="hidden">
+                        <select id="prioritySelect" class="rounded border-gray-300" onchange="updatePriority(this.value)">
+                            <option value="">Update Priority</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comments Section -->
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Comments</h3>
+                
+                <!-- Add Comment Form -->
+                <form id="commentForm" class="mb-6">
+                    <div class="mb-4">
+                        <textarea id="commentContent" rows="3" class="shadow-sm block w-full focus:ring-blue-500 focus:border-blue-500 sm:text-sm border border-gray-300 rounded-md" placeholder="Add a comment..."></textarea>
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            Add Comment
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Comments List -->
+                <div id="commentsList" class="space-y-4">
+                    <!-- Comments will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assign Ticket Modal -->
+    <div id="assignTicketModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Assign Ticket</h3>
+                <form id="assignTicketForm">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="agentSelect">
+                            Select Agent
+                        </label>
+                        <select id="agentSelect" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                            <!-- Agents will be populated here -->
+                        </select>
+                    </div>
+                    <div class="flex justify-end space-x-4">
+                        <button type="button" onclick="closeAssignModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            Assign
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTicket = null;
+        let currentUser = null;
+
+        // Style objects for status and priority
+        const statusStyles = {
+            open: 'bg-yellow-100 text-yellow-800',
+            in_progress: 'bg-blue-100 text-blue-800',
+            resolved: 'bg-green-100 text-green-800',
+            closed: 'bg-gray-100 text-gray-800'
+        };
+
+        const priorityStyles = {
+            low: 'bg-green-100 text-green-800',
+            medium: 'bg-yellow-100 text-yellow-800',
+            high: 'bg-orange-100 text-orange-800',
+            urgent: 'bg-red-100 text-red-800'
+        };
+
+        // Format functions
+        function formatStatus(status) {
+            return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatPriority(priority) {
+            return priority.charAt(0).toUpperCase() + priority.slice(1);
+        }
+
+        // Check authentication and load ticket data
+        async function init() {
+            try {
+                const authResponse = await fetch('/api/auth/check', {
+                    credentials: 'include'
+                });
+                const authData = await authResponse.json();
+                if (!authData.user) {
+                    window.location.href = '/login';
+                    return;
+                }
+                currentUser = authData.user;
+                document.getElementById('userInfo').textContent = `Welcome, ${currentUser.name}`;
+
+                // Get ticket ID from URL
+                const ticketId = window.location.pathname.split('/').pop();
+                await loadTicketDetails(ticketId);
+                await loadComments(ticketId);
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                window.location.href = '/login';
+            }
+        }
+
+        // Load ticket details
+        async function loadTicketDetails(ticketId) {
+            try {
+                const response = await fetch(`/api/tickets/${ticketId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load ticket details');
+                }
+                currentTicket = await response.json();
+                displayTicketDetails(currentTicket);
+                setupActionButtons();
+            } catch (error) {
+                console.error('Error loading ticket details:', error);
+                alert('Error loading ticket details');
+            }
+        }
+
+        // Display ticket details
+        function displayTicketDetails(ticket) {
+            document.getElementById('ticketTitle').textContent = ticket.title;
+            document.getElementById('ticketDescription').textContent = ticket.description;
+            
+            // Set status with appropriate styling
+            const statusElement = document.getElementById('ticketStatus');
+            statusElement.textContent = formatStatus(ticket.status);
+            statusElement.className = `ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusStyles[ticket.status]}`;
+            
+            // Set priority with appropriate styling
+            const priorityElement = document.getElementById('ticketPriority');
+            priorityElement.textContent = formatPriority(ticket.priority);
+            priorityElement.className = `ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${priorityStyles[ticket.priority]}`;
+            
+            // Set created by and assigned to
+            document.getElementById('ticketCreatedBy').textContent = ticket.created_by_name || 'Unknown';
+            document.getElementById('ticketAssignedTo').textContent = ticket.assigned_to_name || 'Unassigned';
+            
+            // Format and set dates
+            document.getElementById('ticketCreatedAt').textContent = new Date(ticket.created_at).toLocaleString();
+
+            // Update status and priority selects if they exist
+            const statusSelect = document.getElementById('statusSelect');
+            if (statusSelect) {
+                statusSelect.value = ticket.status;
+            }
+
+            const prioritySelect = document.getElementById('prioritySelect');
+            if (prioritySelect) {
+                prioritySelect.value = ticket.priority;
+            }
+        }
+
+        // Setup action buttons based on user role
+        function setupActionButtons() {
+            if (!currentUser || !currentTicket) return;
+
+            const isAdmin = currentUser.role === 'admin';
+            const isAgent = currentUser.role === 'agent';
+            const isAssigned = currentTicket.assigned_to === currentUser.id;
+
+            // Show assign section for admins and agents
+            if (isAdmin || isAgent) {
+                document.getElementById('assignSection').classList.remove('hidden');
+            }
+
+            // Show status section for assigned agent or admin
+            if (isAdmin || (isAgent && isAssigned)) {
+                document.getElementById('statusSection').classList.remove('hidden');
+            }
+
+            // Show priority section for assigned agent or admin
+            if (isAdmin || (isAgent && isAssigned)) {
+                document.getElementById('prioritySection').classList.remove('hidden');
+            }
+        }
+
+        // Load comments
+        async function loadComments(ticketId) {
+            try {
+                const response = await fetch(`/api/tickets/${ticketId}/comments`);
+                const comments = await response.json();
+                displayComments(comments);
+            } catch (error) {
+                console.error('Error loading comments:', error);
+            }
+        }
+
+        // Display comments
+        function displayComments(comments) {
+            const commentsList = document.getElementById('commentsList');
+            commentsList.innerHTML = '';
+
+            comments.forEach(comment => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-50 rounded-lg p-4';
+                div.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-medium text-gray-900">${comment.user_name || 'Unknown'}</span>
+                        <span class="text-sm text-gray-500">${new Date(comment.created_at).toLocaleString()}</span>
+                    </div>
+                    <p class="text-gray-600">${comment.content}</p>
+                `;
+                commentsList.appendChild(div);
+            });
+        }
+
+        // Add comment
+        document.getElementById('commentForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const content = document.getElementById('commentContent').value.trim();
+            if (!content) return;
+
+            try {
+                const ticketId = currentTicket.id;
+                const response = await fetch(`/api/tickets/${ticketId}/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ content })
+                });
+
+                if (response.ok) {
+                    document.getElementById('commentContent').value = '';
+                    await loadComments(ticketId);
+                } else {
+                    alert('Failed to add comment');
+                }
+            } catch (error) {
+                console.error('Error adding comment:', error);
+                alert('Error adding comment');
+            }
+        };
+
+        // Update ticket status
+        async function updateStatus(status) {
+            if (!status) return;
+
+            try {
+                const response = await fetch(`/api/tickets/${currentTicket.id}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status })
+                });
+
+                if (response.ok) {
+                    await loadTicketDetails(currentTicket.id);
+                } else {
+                    alert('Failed to update ticket status');
+                }
+            } catch (error) {
+                console.error('Error updating ticket status:', error);
+                alert('Error updating ticket status');
+            }
+        }
+
+        // Update ticket priority
+        async function updatePriority(priority) {
+            if (!priority) return;
+
+            try {
+                const response = await fetch(`/api/tickets/${currentTicket.id}/priority`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ priority })
+                });
+
+                if (response.ok) {
+                    await loadTicketDetails(currentTicket.id);
+                } else {
+                    alert('Failed to update ticket priority');
+                }
+            } catch (error) {
+                console.error('Error updating ticket priority:', error);
+                alert('Error updating ticket priority');
+            }
+        }
+
+        // Show assign modal
+        async function showAssignModal() {
+            try {
+                const response = await fetch('/api/users/agents');
+                const agents = await response.json();
+                
+                const select = document.getElementById('agentSelect');
+                select.innerHTML = '<option hidden value="">Select an agent</option>';
+                agents.forEach(agent => {
+                    select.innerHTML += `<option value="${agent.id}">${agent.name}</option>`;
+                });
+                
+                document.getElementById('assignTicketModal').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error loading agents:', error);
+                alert('Error loading agents');
+            }
+        }
+
+        // Close assign modal
+        function closeAssignModal() {
+            document.getElementById('assignTicketModal').classList.add('hidden');
+        }
+
+        // Handle ticket assignment
+        document.getElementById('assignTicketForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const agentId = document.getElementById('agentSelect').value;
+            if (!agentId) return;
+
+            try {
+                const response = await fetch(`/api/tickets/${currentTicket.id}/assign`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ agent_id: agentId })
+                });
+
+                if (response.ok) {
+                    closeAssignModal();
+                    await loadTicketDetails(currentTicket.id);
+                } else {
+                    alert('Failed to assign ticket');
+                }
+            } catch (error) {
+                console.error('Error assigning ticket:', error);
+                alert('Error assigning ticket');
+            }
+        };
+
+        // Go back to dashboard
+        function goBack() {
+            window.history.back();
+        }
+
+        // Logout
+        async function logout() {
+            try {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                window.location.href = '/login';
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        }
+
+        // Initialize page
+        init();
+    </script>
+</body>
+</html> 

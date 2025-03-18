@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Tickets - Support Ticket System</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="flex justify-between">
+                <div class="flex space-x-7">
+                    <a href="/dashboard" class="flex items-center py-4">
+                        <span class="font-semibold text-gray-500 text-lg">Support Ticket System</span>
+                    </a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/dashboard" class="py-2 px-4 text-gray-500 hover:text-gray-700">Dashboard</a>
+                    <a href="/tickets/create" class="py-2 px-4 text-blue-500 hover:text-blue-700">Create Ticket</a>
+                    <button id="logoutBtn" class="py-2 px-4 text-red-500 hover:text-red-700">Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">My Tickets</h1>
+            <div class="flex space-x-2">
+                <select id="statusFilter" class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="">All Status</option>
+                    <option value="open">Open</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                </select>
+                <select id="priorityFilter" class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="">All Priority</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Tickets List -->
+        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+            <ul id="ticketsList" class="divide-y divide-gray-200">
+                <!-- Tickets will be dynamically inserted here -->
+            </ul>
+        </div>
+
+        <!-- Ticket Details Modal -->
+        <div id="ticketModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden">
+            <div class="flex items-center justify-center min-h-screen">
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start">
+                            <h2 id="modalTitle" class="text-xl font-bold text-gray-900"></h2>
+                            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-500">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Ticket Details -->
+                        <div class="mt-4 space-y-4">
+                            <div class="flex flex-wrap gap-4">
+                                <div class="flex items-center">
+                                    <span id="modalStatus" class="px-2 py-1 text-sm rounded-full"></span>
+                                </div>
+                                <div class="flex items-center">
+                                    <span id="modalPriority" class="px-2 py-1 text-sm rounded-full"></span>
+                                </div>
+                                <div class="flex items-center">
+                                    <span id="modalCategory" class="px-2 py-1 text-sm text-gray-600"></span>
+                                </div>
+                            </div>
+                            
+                            <div class="prose max-w-none">
+                                <h3 class="text-lg font-medium text-gray-900">Description</h3>
+                                <p id="modalDescription" class="mt-2 text-gray-600"></p>
+                            </div>
+
+                            <!-- Attachments -->
+                            <div id="modalAttachments" class="hidden">
+                                <h3 class="text-lg font-medium text-gray-900">Attachments</h3>
+                                <div id="attachmentsList" class="mt-2 grid grid-cols-2 gap-4">
+                                    <!-- Attachments will be dynamically inserted here -->
+                                </div>
+                            </div>
+
+                            <!-- Comments Section -->
+                            <div class="mt-6">
+                                <h3 class="text-lg font-medium text-gray-900">Comments</h3>
+                                <div class="mt-4">
+                                    <form id="commentForm" class="space-y-4">
+                                        <textarea
+                                            id="commentText"
+                                            rows="3"
+                                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            placeholder="Add a comment..."></textarea>
+                                        <div class="flex justify-end">
+                                            <button type="submit"
+                                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                                Add Comment
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div id="commentsList" class="mt-6 space-y-4">
+                                    <!-- Comments will be dynamically inserted here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTicketId = null;
+
+        // Status and priority styling
+        const statusStyles = {
+            open: 'bg-yellow-100 text-yellow-800',
+            in_progress: 'bg-blue-100 text-blue-800',
+            resolved: 'bg-green-100 text-green-800',
+            closed: 'bg-gray-100 text-gray-800'
+        };
+
+        const priorityStyles = {
+            high: 'bg-red-100 text-red-800',
+            medium: 'bg-orange-100 text-orange-800',
+            low: 'bg-green-100 text-green-800'
+        };
+
+        // Fetch and display tickets
+        async function fetchTickets() {
+            try {
+                const response = await fetch('/api/tickets');
+                const tickets = await response.json();
+                displayTickets(tickets);
+            } catch (error) {
+                console.error('Error fetching tickets:', error);
+            }
+        }
+
+        function displayTickets(tickets) {
+            const ticketsList = document.getElementById('ticketsList');
+            ticketsList.innerHTML = '';
+
+            tickets.forEach(ticket => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="block hover:bg-gray-50 cursor-pointer" onclick="openTicketDetails('${ticket.id}')">
+                        <div class="px-4 py-4 sm:px-6">
+                            <div class="flex items-center justify-between">
+                                <div class="truncate">
+                                    <div class="flex text-sm">
+                                        <p class="font-medium text-blue-600 truncate">${ticket.title}</p>
+                                    </div>
+                                    <div class="mt-2 flex">
+                                        <div class="flex items-center text-sm text-gray-500">
+                                            <span class="truncate">${ticket.description.substring(0, 100)}${ticket.description.length > 100 ? '...' : ''}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="ml-2 flex-shrink-0 flex flex-col items-end space-y-2">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusStyles[ticket.status]}">${formatStatus(ticket.status)}</span>
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${priorityStyles[ticket.priority]}">${formatPriority(ticket.priority)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                ticketsList.appendChild(li);
+            });
+        }
+
+        async function openTicketDetails(ticketId) {
+            try {
+                const response = await fetch(`/api/tickets/${ticketId}`);
+                const ticket = await response.json();
+                
+                currentTicketId = ticketId;
+                
+                // Update modal content
+                document.getElementById('modalTitle').textContent = ticket.title;
+                document.getElementById('modalStatus').textContent = formatStatus(ticket.status);
+                document.getElementById('modalStatus').className = `px-2 py-1 text-sm rounded-full ${statusStyles[ticket.status]}`;
+                document.getElementById('modalPriority').textContent = formatPriority(ticket.priority);
+                document.getElementById('modalPriority').className = `px-2 py-1 text-sm rounded-full ${priorityStyles[ticket.priority]}`;
+                document.getElementById('modalCategory').textContent = formatCategory(ticket.category);
+                document.getElementById('modalDescription').textContent = ticket.description;
+
+                // Handle attachments
+                const attachmentsContainer = document.getElementById('modalAttachments');
+                const attachmentsList = document.getElementById('attachmentsList');
+                if (ticket.attachments && ticket.attachments.length > 0) {
+                    attachmentsContainer.classList.remove('hidden');
+                    attachmentsList.innerHTML = ticket.attachments.map(attachment => `
+                        <a href="/uploads/${attachment.file_path}" target="_blank" class="flex items-center p-3 border rounded-lg hover:bg-gray-50">
+                            <svg class="h-6 w-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd" />
+                            </svg>
+                            <span class="ml-2 text-sm text-gray-600">${attachment.file_name}</span>
+                        </a>
+                    `).join('');
+                } else {
+                    attachmentsContainer.classList.add('hidden');
+                }
+
+                // Load comments
+                await loadComments(ticketId);
+
+                // Show modal
+                document.getElementById('ticketModal').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error loading ticket details:', error);
+            }
+        }
+
+        async function loadComments(ticketId) {
+            try {
+                const response = await fetch(`/api/tickets/${ticketId}/comments`);
+                const comments = await response.json();
+                
+                const commentsList = document.getElementById('commentsList');
+                commentsList.innerHTML = comments.map(comment => `
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="flex space-x-3">
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-sm font-medium text-gray-900">${comment.user_name}</h3>
+                                    <p class="text-sm text-gray-500">${formatDate(comment.created_at)}</p>
+                                </div>
+                                <div class="mt-1 text-sm text-gray-700">
+                                    <p>${comment.content}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading comments:', error);
+            }
+        }
+
+        // Handle comment submission
+        document.getElementById('commentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const commentText = document.getElementById('commentText').value.trim();
+            
+            if (!commentText) return;
+
+            try {
+                const response = await fetch(`/api/tickets/${currentTicketId}/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content: commentText })
+                });
+
+                if (response.ok) {
+                    document.getElementById('commentText').value = '';
+                    await loadComments(currentTicketId);
+                }
+            } catch (error) {
+                console.error('Error posting comment:', error);
+            }
+        });
+
+        // Filter handling
+        document.getElementById('statusFilter').addEventListener('change', fetchTickets);
+        document.getElementById('priorityFilter').addEventListener('change', fetchTickets);
+
+        // Helper functions
+        function closeModal() {
+            document.getElementById('ticketModal').classList.add('hidden');
+            currentTicketId = null;
+        }
+
+        function formatStatus(status) {
+            return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatPriority(priority) {
+            return priority.charAt(0).toUpperCase() + priority.slice(1);
+        }
+
+        function formatCategory(category) {
+            return category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleString();
+        }
+
+        // Logout functionality
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/auth/logout', {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    window.location.href = '/login';
+                }
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        });
+
+        // Initial load
+        fetchTickets();
+    </script>
+</body>
+</html> 

@@ -1,29 +1,23 @@
 package main
 
 import (
+	"log"
+	"net/http"
+
 	"github.com/choukaryasandeep/support-ticket-system/config"
 	"github.com/choukaryasandeep/support-ticket-system/routes"
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	// Load env
-	err := godotenv.Load(".env")
-	if err != nil {
-		panic("Error loading .env file")
-	}
+	// Initialize MongoDB
+	config.ConnectMongoDB()
 
-	// Initialize DB
-	config.ConnectDB()
-
-	// Init Gin Router
-	r := gin.Default()
-
-	// Load Routes
-	routes.AuthRoutes(r)
-	routes.TicketRoutes(r)
+	// Initialize router
+	r := routes.SetupRouter()
 
 	// Start Server
-	r.Run(":8080")
+	log.Println("Server starting on http://localhost:8080")
+	if err := http.ListenAndServe(":8080", r); err != nil {
+		log.Fatal("Error starting server:", err)
+	}
 }
