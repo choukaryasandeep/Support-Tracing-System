@@ -37,3 +37,8 @@ func ConnectMongoDB() {
 func GetCollection(name string) *mongo.Collection {
 	return db.Collection(name)
 }
+
+// GetDB returns the MongoDB database instance
+func GetDB() *mongo.Database {
+	return db
+}

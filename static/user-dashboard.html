@@ -175,6 +175,47 @@
         </div>
     </div>
 
+    <style>
+        /* Add styles for toast with action */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        .toast-message {
+            flex: 1;
+        }
+
+        .toast-action {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .toast-action:hover {
+            background-color: #45a049;
+        }
+    </style>
+
     <script>
         // Check authentication
         async function checkAuth() {
@@ -240,25 +281,33 @@
             tickets.forEach(ticket => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.id || ticket._id || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.title || 'No Title'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.title}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.assigned_to_name || 'Unassigned'}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(ticket.status)}">
-                            ${ticket.status || 'Unknown'}
+                            ${ticket.status}
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getPriorityColor(ticket.priority)}">
-                            ${ticket.priority || 'Unknown'}
+                            ${ticket.priority}
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         ${new Date(ticket.created_at).toLocaleDateString()}
                     </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="viewTicket('${ticket.id}')" class="text-blue-600 hover:text-blue-900 mr-3">View</button>
+                    </td>
                 `;
                 tbody.appendChild(tr);
             });
+        }
+
+        // View ticket details
+        function viewTicket(ticketId) {
+            window.location.href = `/tickets/${ticketId}`;
         }
 
         // Get status color class
@@ -292,11 +341,6 @@
                 .then(response => response.json())
                 .then(tickets => displayTickets(tickets))
                 .catch(error => console.error('Error filtering tickets:', error));
-        }
-
-        // View ticket details
-        function viewTicket(ticketId) {
-            window.location.href = `/tickets/${ticketId}`;
         }
 
         // Create ticket

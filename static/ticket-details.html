@@ -26,6 +26,11 @@
         <!-- Ticket Details -->
         <div class="bg-white shadow rounded-lg mb-6">
             <div class="px-4 py-5 sm:p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-gray-900">Ticket Details</h2>
+                    <div class="flex space-x-2">
+                    </div>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <h2 id="ticketTitle" class="text-2xl font-bold text-gray-900 mb-4"></h2>
@@ -100,7 +105,8 @@
                 <!-- Add Comment Form -->
                 <form id="commentForm" class="mb-6">
                     <div class="mb-4">
-                        <textarea id="commentContent" rows="3" class="shadow-sm block w-full focus:ring-blue-500 focus:border-blue-500 sm:text-sm border border-gray-300 rounded-md" placeholder="Add a comment..."></textarea>
+                        <label for="commentContent" class="block text-sm font-medium text-gray-700">Add a comment</label>
+                        <textarea id="commentContent" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Type your comment here..."></textarea>
                     </div>
                     <div class="flex justify-end">
                         <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
@@ -252,6 +258,7 @@
 
             const isAdmin = currentUser.role === 'admin';
             const isAgent = currentUser.role === 'agent';
+            const isUser = currentUser.role === 'user';
             const isAssigned = currentTicket.assigned_to === currentUser.id;
 
             // Show assign section for admins and agents
@@ -267,6 +274,11 @@
             // Show priority section for assigned agent or admin
             if (isAdmin || (isAgent && isAssigned)) {
                 document.getElementById('prioritySection').classList.remove('hidden');
+            }
+
+            // Hide action buttons for users
+            if (isUser) {
+                document.getElementById('actionButtons').classList.add('hidden');
             }
         }
 
@@ -289,12 +301,30 @@
             comments.forEach(comment => {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-50 rounded-lg p-4';
+                const isCurrentUser = comment.user_id === currentUser.id;
+                const isAgent = currentUser.role === 'agent';
+                const isAdmin = currentUser.role === 'admin';
+                const isUser = currentUser.role === 'user';
+                
                 div.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="font-medium text-gray-900">${comment.user_name || 'Unknown'}</span>
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="font-medium text-gray-900">${comment.user_name || 'Unknown'}</span>
+                            ${isCurrentUser ? '<span class="ml-2 text-xs text-blue-600">(You)</span>' : ''}
+                            ${isAgent ? '<span class="ml-2 text-xs text-green-600">(Agent)</span>' : ''}
+                            ${isAdmin ? '<span class="ml-2 text-xs text-purple-600">(Admin)</span>' : ''}
+                            ${isUser ? '<span class="ml-2 text-xs text-gray-600">(User)</span>' : ''}
+                        </div>
                         <span class="text-sm text-gray-500">${new Date(comment.created_at).toLocaleString()}</span>
                     </div>
-                    <p class="text-gray-600">${comment.content}</p>
+                    <p class="text-gray-600 whitespace-pre-wrap">${comment.content}</p>
+                    ${(isCurrentUser || isAdmin) ? `
+                        <div class="mt-2 flex justify-end">
+                            <button onclick="deleteComment('${comment.id}')" class="text-red-600 hover:text-red-900 text-sm">
+                                Delete
+                            </button>
+                        </div>
+                    ` : ''}
                 `;
                 commentsList.appendChild(div);
             });
@@ -307,18 +337,20 @@
             if (!content) return;
 
             try {
-                const ticketId = currentTicket.id;
-                const response = await fetch(`/api/tickets/${ticketId}/comments`, {
+                const response = await fetch(`/api/tickets/${currentTicket.id}/comments`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ content })
+                    body: JSON.stringify({
+                        content,
+                        user_id: currentUser.id
+                    })
                 });
 
                 if (response.ok) {
                     document.getElementById('commentContent').value = '';
-                    await loadComments(ticketId);
+                    await loadComments(currentTicket.id);
                 } else {
                     alert('Failed to add comment');
                 }
@@ -328,28 +360,66 @@
             }
         };
 
+        // Delete comment
+        async function deleteComment(commentId) {
+            if (!confirm('Are you sure you want to delete this comment?')) return;
+
+            try {
+                const response = await fetch(`/api/tickets/${currentTicket.id}/comments/${commentId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    await loadComments(currentTicket.id);
+                } else {
+                    alert('Failed to delete comment');
+                }
+            } catch (error) {
+                console.error('Error deleting comment:', error);
+                alert('Error deleting comment');
+            }
+        }
+
         // Update ticket status
         async function updateStatus(status) {
             if (!status) return;
 
             try {
+                console.log('Updating status to:', status);
                 const response = await fetch(`/api/tickets/${currentTicket.id}/status`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ status })
+                    body: JSON.stringify({ 
+                        status: status
+                    })
                 });
 
                 if (response.ok) {
                     await loadTicketDetails(currentTicket.id);
+                    showToast('Status updated successfully');
                 } else {
-                    alert('Failed to update ticket status');
+                    const error = await response.json();
+                    console.error('Status update failed:', error);
+                    alert(`Failed to update ticket status: ${error.message || 'Unknown error'}`);
                 }
             } catch (error) {
                 console.error('Error updating ticket status:', error);
                 alert('Error updating ticket status');
             }
+        }
+
+        // Show toast notification
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
         }
 
         // Update ticket priority
@@ -380,10 +450,14 @@
         async function showAssignModal() {
             try {
                 const response = await fetch('/api/users/agents');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch agents');
+                }
+                
                 const agents = await response.json();
                 
                 const select = document.getElementById('agentSelect');
-                select.innerHTML = '<option hidden value="">Select an agent</option>';
+                select.innerHTML = '<option value="">Select an agent</option>';
                 agents.forEach(agent => {
                     select.innerHTML += `<option value="${agent.id}">${agent.name}</option>`;
                 });
@@ -395,16 +469,14 @@
             }
         }
 
-        // Close assign modal
-        function closeAssignModal() {
-            document.getElementById('assignTicketModal').classList.add('hidden');
-        }
-
         // Handle ticket assignment
         document.getElementById('assignTicketForm').onsubmit = async (e) => {
             e.preventDefault();
             const agentId = document.getElementById('agentSelect').value;
-            if (!agentId) return;
+            if (!agentId) {
+                alert('Please select an agent');
+                return;
+            }
 
             try {
                 const response = await fetch(`/api/tickets/${currentTicket.id}/assign`, {
@@ -418,14 +490,22 @@
                 if (response.ok) {
                     closeAssignModal();
                     await loadTicketDetails(currentTicket.id);
+                    showToast('Ticket assigned successfully');
                 } else {
-                    alert('Failed to assign ticket');
+                    const error = await response.json();
+                    alert(`Failed to assign ticket: ${error.message || 'Unknown error'}`);
                 }
             } catch (error) {
                 console.error('Error assigning ticket:', error);
                 alert('Error assigning ticket');
             }
         };
+
+        // Close assign modal
+        function closeAssignModal() {
+            document.getElementById('assignTicketModal').classList.add('hidden');
+            document.getElementById('assignTicketForm').reset();
+        }
 
         // Go back to dashboard
         function goBack() {

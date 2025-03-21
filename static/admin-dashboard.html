@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Support Ticket System</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-100">
     <nav class="bg-white shadow-lg">
@@ -23,7 +24,7 @@
 
     <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <!-- Statistics Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div class="bg-white overflow-hidden shadow rounded-lg">
                 <div class="p-5">
                     <div class="flex items-center">
@@ -63,13 +64,30 @@
                     <div class="flex items-center">
                         <div class="flex-shrink-0">
                             <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                             </svg>
                         </div>
                         <div class="ml-5 w-0 flex-1">
                             <dl>
-                                <dt class="text-sm font-medium text-gray-500 truncate">Available Agents</dt>
-                                <dd id="availableAgents" class="text-lg font-semibold text-gray-900">-</dd>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Resolved Today</dt>
+                                <dd id="resolvedToday" class="text-lg font-semibold text-gray-900">-</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Avg. Response Time</dt>
+                                <dd id="avgResponseTime" class="text-lg font-semibold text-gray-900">-</dd>
                             </dl>
                         </div>
                     </div>
@@ -77,29 +95,46 @@
             </div>
         </div>
 
-        <!-- Admin Actions -->
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white shadow rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Tickets by Status</h3>
+                <canvas id="statusChart"></canvas>
+            </div>
+            <div class="bg-white shadow rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Tickets by Priority</h3>
+                <canvas id="priorityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Agent Performance -->
         <div class="bg-white shadow rounded-lg mb-8">
             <div class="px-4 py-5 sm:p-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">Admin Actions</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <button onclick="manageAgents()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                        Manage Agents
-                    </button>
-                    <button onclick="assignTickets()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
-                        Assign Tickets
-                    </button>
-                    <button onclick="viewSystemStats()" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
-                        System Statistics
-                    </button>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Agent Performance</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Tickets</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resolved</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg. Resolution Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Response Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="agentPerformanceTable" class="bg-white divide-y divide-gray-200">
+                            <!-- Agent performance data will be populated here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
-        <!-- Tickets Table -->
+        <!-- Active Tickets -->
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-5 sm:p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-medium text-gray-900">All Tickets</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Active Tickets</h3>
                     <div class="flex space-x-4">
                         <select id="statusFilter" class="rounded border-gray-300" onchange="filterTickets()">
                             <option value="">All Status</option>
@@ -123,10 +158,10 @@
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
@@ -138,47 +173,117 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Assign Ticket Modal -->
-    <div id="assignTicketModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div class="mt-3">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">Assign Ticket</h3>
-                <form id="assignTicketForm">
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-bold mb-2" for="agentSelect">
-                            Select Agent
-                        </label>
-                        <select id="agentSelect" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                            <!-- Agents will be populated here -->
-                        </select>
+        <div class="dashboard-container">
+            <div class="notifications-panel">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">Notifications</h3>
+                    <div class="flex space-x-2">
+                        <button onclick="markAllAsRead()" class="text-sm text-blue-600 hover:text-blue-800">
+                            Mark all as read
+                        </button>
+                        <button onclick="toggleNotificationPreferences()" class="text-sm text-blue-600 hover:text-blue-800">
+                            Preferences
+                        </button>
                     </div>
-                    <div class="flex justify-end space-x-4">
-                        <button type="button" onclick="closeAssignModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                </div>
+                <div id="notifications-container" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- Notification Preferences Modal -->
+        <div id="notificationPreferencesModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full">
+                <h3 class="text-lg font-semibold mb-4">Notification Preferences</h3>
+                <form id="notificationPreferencesForm" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium">Email Notifications</label>
+                        <input type="checkbox" name="emailNotifications" class="form-checkbox h-5 w-5 text-blue-600">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium">Status Updates</label>
+                        <input type="checkbox" name="statusUpdates" class="form-checkbox h-5 w-5 text-blue-600">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium">New Comments</label>
+                        <input type="checkbox" name="newComments" class="form-checkbox h-5 w-5 text-blue-600">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium">New Tickets</label>
+                        <input type="checkbox" name="newTickets" class="form-checkbox h-5 w-5 text-blue-600">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium">Admin Comments</label>
+                        <input type="checkbox" name="adminComments" class="form-checkbox h-5 w-5 text-blue-600">
+                    </div>
+                    <div class="flex justify-end space-x-2 mt-6">
+                        <button type="button" onclick="toggleNotificationPreferences()" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
                             Cancel
                         </button>
-                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                            Assign
+                        <button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                            Save
                         </button>
                     </div>
                 </form>
             </div>
         </div>
+
+        <!-- Assign Ticket Modal -->
+        <div id="assignTicketModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden">
+            <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Assign Ticket</h3>
+                    <form id="assignTicketForm">
+                        <div class="mb-4">
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="agentSelect">
+                                Select Agent
+                            </label>
+                            <select id="agentSelect" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                                <!-- Agents will be populated here -->
+                            </select>
+                        </div>
+                        <div class="flex justify-end space-x-4">
+                            <button type="button" onclick="closeAssignModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                                Cancel
+                            </button>
+                            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                                Assign
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
+        let statusChart, priorityChart;
+        let currentUser;
+        let eventSource;
+        let notifications = [];
+
         // Check authentication
         async function checkAuth() {
             try {
+                console.log('Checking authentication...');
                 const response = await fetch('/api/auth/check', {
                     credentials: 'include'
                 });
+                console.log('Auth check response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`Auth check failed: ${response.status}`);
+                }
+                
                 const data = await response.json();
-                if (data.user) {
+                console.log('Auth check response:', data);
+                
+                if (data.user && data.user.role === 'admin') {
                     document.getElementById('userInfo').textContent = `Welcome, ${data.user.name}`;
+                    currentUser = data.user;
                     loadDashboardData();
                 } else {
+                    console.log('User is not admin, redirecting to login');
                     window.location.href = '/login';
                 }
             } catch (error) {
@@ -194,45 +299,148 @@
                 const tickets = await response.json();
                 
                 // Update statistics
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
                 document.getElementById('totalTickets').textContent = tickets.length;
                 document.getElementById('openTickets').textContent = tickets.filter(t => t.status === 'open').length;
-                
-                // Get available agents count
-                const agentsResponse = await fetch('/api/users/agents');
-                const agents = await agentsResponse.json();
-                document.getElementById('availableAgents').textContent = agents.length;
+                document.getElementById('resolvedToday').textContent = tickets.filter(t => 
+                    t.status === 'resolved' && new Date(t.updated_at) >= today
+                ).length;
 
-                // Get user details for tickets that don't have names
-                for (let ticket of tickets) {
-                    if (ticket.created_by && !ticket.created_by_name) {
-                        try {
-                            const userResponse = await fetch(`/api/auth/user/${ticket.created_by}`);
-                            if (userResponse.ok) {
-                                const userData = await userResponse.json();
-                                ticket.created_by_name = userData.name;
-                            }
-                        } catch (error) {
-                            console.error('Error fetching creator details:', error);
-                        }
-                    }
+                // Calculate average response time
+                const responseTimes = tickets
+                    .filter(t => t.first_response_at && t.created_at)
+                    .map(t => new Date(t.first_response_at) - new Date(t.created_at));
+                const avgResponseTime = responseTimes.length > 0 
+                    ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length / 1000 / 60)
+                    : 0;
+                document.getElementById('avgResponseTime').textContent = `${avgResponseTime} minutes`;
 
-                    if (ticket.assigned_to && !ticket.assigned_to_name) {
-                        try {
-                            const userResponse = await fetch(`/api/auth/user/${ticket.assigned_to}`);
-                            if (userResponse.ok) {
-                                const userData = await userResponse.json();
-                                ticket.assigned_to_name = userData.name;
-                            }
-                        } catch (error) {
-                            console.error('Error fetching assignee details:', error);
-                        }
-                    }
-                }
-
+                // Update charts
+                updateStatusChart(tickets);
+                updatePriorityChart(tickets);
+                updateAgentPerformance(tickets);
                 displayTickets(tickets);
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
             }
+        }
+
+        function updateStatusChart(tickets) {
+            // Status Chart
+            const statusData = {
+                open: tickets.filter(t => t.status === 'open').length,
+                in_progress: tickets.filter(t => t.status === 'in_progress').length,
+                resolved: tickets.filter(t => t.status === 'resolved').length,
+                closed: tickets.filter(t => t.status === 'closed').length
+            };
+
+            if (statusChart) {
+                statusChart.destroy();
+            }
+
+            statusChart = new Chart(document.getElementById('statusChart'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(statusData),
+                    datasets: [{
+                        data: Object.values(statusData),
+                        backgroundColor: [
+                            '#FCD34D', // yellow for open
+                            '#60A5FA', // blue for in_progress
+                            '#34D399', // green for resolved
+                            '#9CA3AF'  // gray for closed
+                        ]
+                    }]
+                }
+            });
+        }
+
+        function updatePriorityChart(tickets) {
+            // Priority Chart
+            const priorityData = {
+                low: tickets.filter(t => t.priority === 'low').length,
+                medium: tickets.filter(t => t.priority === 'medium').length,
+                high: tickets.filter(t => t.priority === 'high').length,
+                urgent: tickets.filter(t => t.priority === 'urgent').length
+            };
+
+            if (priorityChart) {
+                priorityChart.destroy();
+            }
+
+            priorityChart = new Chart(document.getElementById('priorityChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(priorityData),
+                    datasets: [{
+                        label: 'Tickets by Priority',
+                        data: Object.values(priorityData),
+                        backgroundColor: [
+                            '#34D399', // green for low
+                            '#FCD34D', // yellow for medium
+                            '#F59E0B', // orange for high
+                            '#EF4444'  // red for urgent
+                        ]
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateAgentPerformance(tickets) {
+            const tbody = document.getElementById('agentPerformanceTable');
+            tbody.innerHTML = '';
+
+            // Get all agents
+            fetch('/api/users/agents')
+                .then(response => response.json())
+                .then(agents => {
+                    agents.forEach(agent => {
+                        // Filter tickets for this agent
+                        const agentTickets = tickets.filter(t => t.assigned_to === agent.id);
+                        const resolvedTickets = agentTickets.filter(t => t.status === 'resolved');
+                        
+                        // Calculate metrics
+                        const assignedCount = agentTickets.length;
+                        const resolvedCount = resolvedTickets.length;
+                        
+                        // Calculate average resolution time
+                        let avgResolutionTime = 0;
+                        if (resolvedCount > 0) {
+                            const totalResolutionTime = resolvedTickets.reduce((sum, ticket) => {
+                                if (ticket.resolved_at && ticket.created_at) {
+                                    return sum + (new Date(ticket.resolved_at) - new Date(ticket.created_at));
+                                }
+                                return sum;
+                            }, 0);
+                            avgResolutionTime = Math.round(totalResolutionTime / resolvedCount / 1000 / 60); // in minutes
+                        }
+
+                        // Calculate response rate (percentage of resolved tickets)
+                        const responseRate = assignedCount > 0 ? Math.round((resolvedCount / assignedCount) * 100) : 0;
+
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${agent.name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignedCount}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${resolvedCount}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${avgResolutionTime} minutes</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${responseRate}%</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching agents:', error);
+                });
         }
 
         // Display tickets in table
@@ -242,29 +450,33 @@
 
             tickets.forEach(ticket => {
                 const tr = document.createElement('tr');
-                // Show assign button only if ticket is not assigned
-                const assignButton = !ticket.assigned_to ? 
-                    `<button onclick="assignTicket('${ticket.id || ticket._id}')" class="text-green-600 hover:text-green-900">Assign</button>` : '';
+                tr.setAttribute('data-ticket-id', ticket.id);
                 
+                // Create action buttons based on ticket assignment status
+                const actionButtons = `
+                    <button onclick="viewTicket('${ticket.id}')" class="text-blue-600 hover:text-blue-900 mr-3">View</button>
+                `;
+
                 tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.id || ticket._id || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${ticket.title || 'No Title'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.title}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.created_by_name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.assigned_to_name || 'Unassigned'}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(ticket.status)}">
-                            ${ticket.status || 'Unknown'}
+                            ${ticket.status}
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getPriorityColor(ticket.priority)}">
-                            ${ticket.priority || 'Unknown'}
+                            ${ticket.priority}
                         </span>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.created_by_name || 'Unknown'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.assigned_to_name || 'Unassigned'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(ticket.created_at).toLocaleString()}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button onclick="viewTicket('${ticket.id || ticket._id}')" class="text-blue-600 hover:text-blue-900 mr-3">View</button>
-                        ${assignButton}
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${new Date(ticket.created_at).toLocaleDateString()}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        ${actionButtons}
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -300,7 +512,11 @@
             
             fetch(`/api/tickets?status=${status}&priority=${priority}`)
                 .then(response => response.json())
-                .then(tickets => displayTickets(tickets))
+                .then(tickets => {
+                    displayTickets(tickets);
+                    updateStatistics(tickets);
+                    updateCharts(tickets);
+                })
                 .catch(error => console.error('Error filtering tickets:', error));
         }
 
@@ -309,60 +525,69 @@
             window.location.href = `/tickets/${ticketId}`;
         }
 
-        // Assign ticket
-        async function assignTicket(ticketId) {
-            try {
-                const response = await fetch('/api/users/agents');
-                const agents = await response.json();
-                
-                const select = document.getElementById('agentSelect');
-                select.innerHTML = '<option hidden value="" >Select an agent</option>';
-                agents.forEach(agent => {
-                    select.innerHTML += `<option value="${agent.id}">${agent.name}</option>`;
-                });
-                
-                document.getElementById('assignTicketModal').classList.remove('hidden');
-                document.getElementById('assignTicketForm').onsubmit = async (e) => {
-                    e.preventDefault();
-                    const agentId = select.value;
-                    if (!agentId) return;
-
-                    try {
-                        await fetch(`/api/tickets/${ticketId}/assign`, {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ agent_id: agentId })
-                        });
-                        
-                        closeAssignModal();
-                        loadDashboardData();
-                    } catch (error) {
-                        console.error('Error assigning ticket:', error);
-                    }
-                };
-            } catch (error) {
-                console.error('Error loading agents:', error);
+        // Show assign ticket modal
+        function showAssignModal() {
+            const assignBtn = document.getElementById('assignTicketBtn');
+            if (assignBtn.disabled) {
+                return; // Don't show modal if button is disabled
             }
+
+            const modal = document.getElementById('assignTicketModal');
+            const agentSelect = document.getElementById('agentSelect');
+            
+            // Clear previous options
+            agentSelect.innerHTML = '<option value="">Select an agent</option>';
+            
+            // Add agent options
+            agents.forEach(agent => {
+                const option = document.createElement('option');
+                option.value = agent.id;
+                option.textContent = agent.name;
+                agentSelect.appendChild(option);
+            });
+            
+            modal.classList.remove('hidden');
         }
 
-        // Close assign modal
+        // Close assign ticket modal
         function closeAssignModal() {
-            document.getElementById('assignTicketModal').classList.add('hidden');
+            const modal = document.getElementById('assignTicketModal');
+            modal.classList.add('hidden');
+            document.getElementById('assignTicketForm').reset();
         }
 
-        // Manage agents
-        function manageAgents() {
-            // Implement agent management functionality
-            alert('Agent management feature coming soon!');
-        }
+        // Handle assign ticket form submission
+        document.getElementById('assignTicketForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const agentId = document.getElementById('agentSelect').value;
+            
+            if (!agentId) {
+                alert('Please select an agent');
+                return;
+            }
 
-        // View system statistics
-        function viewSystemStats() {
-            // Implement system statistics functionality
-            alert('System statistics feature coming soon!');
-        }
+            try {
+                const response = await fetch(`/api/tickets/${currentTicket.id}/assign`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ agent_id: agentId })
+                });
+
+                if (response.ok) {
+                    closeAssignModal();
+                    loadDashboardData();
+                    showToast('Ticket assigned successfully');
+                } else {
+                    const error = await response.json();
+                    alert(`Failed to assign ticket: ${error.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error assigning ticket:', error);
+                alert('Error assigning ticket');
+            }
+        });
 
         // Logout
         async function logout() {
@@ -377,8 +602,185 @@
             }
         }
 
-        // Initialize dashboard
-        checkAuth();
+        // Initialize dashboard when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+        });
+
+        // Clean up when the page is unloaded
+        window.addEventListener('beforeunload', () => {
+            // Clean up any resources if needed
+        });
+
+        // Load notifications
+        async function loadNotifications() {
+            try {
+                const response = await fetch('/api/notifications');
+                if (!response.ok) throw new Error('Failed to fetch notifications');
+                
+                const notifications = await response.json();
+                updateNotificationsUI(notifications);
+            } catch (error) {
+                console.error('Error loading notifications:', error);
+            }
+        }
+
+        // Update notifications UI
+        function updateNotificationsUI(notifications) {
+            const container = document.getElementById('notifications-container');
+            if (!container) return;
+
+            container.innerHTML = (notifications || []).map(notification => `
+                <div class="notification-item ${notification.read ? 'bg-gray-50' : 'bg-white'} p-4 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                     onclick="handleNotificationClick('${notification.id}', '${notification.ticketId}')">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="font-medium text-gray-900">${notification.title}</h4>
+                            <p class="text-sm text-gray-600 mt-1">${notification.message}</p>
+                            <p class="text-xs text-gray-500 mt-2">${new Date(notification.createdAt).toLocaleString()}</p>
+                        </div>
+                        ${!notification.read ? '<span class="w-2 h-2 bg-blue-600 rounded-full"></span>' : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Handle notification click
+        async function handleNotificationClick(notificationId, ticketId) {
+            try {
+                // Mark notification as read
+                await fetch(`/api/notifications/${notificationId}/read`, {
+                    method: 'PUT'
+                });
+
+                // Navigate to ticket
+                window.location.href = `/tickets/${ticketId}`;
+            } catch (error) {
+                console.error('Error handling notification click:', error);
+            }
+        }
+
+        // Mark all notifications as read
+        async function markAllAsRead() {
+            try {
+                const response = await fetch('/api/notifications/read-all', {
+                    method: 'PUT'
+                });
+                if (!response.ok) throw new Error('Failed to mark notifications as read');
+                
+                await loadNotifications();
+                showToast('All notifications marked as read');
+            } catch (error) {
+                console.error('Error marking notifications as read:', error);
+                showToast('Failed to mark notifications as read');
+            }
+        }
+
+        // Load notification preferences
+        async function loadNotificationPreferences() {
+            try {
+                const response = await fetch('/api/notifications/preferences');
+                if (!response.ok) throw new Error('Failed to fetch preferences');
+                
+                const preferences = await response.json();
+                const form = document.getElementById('notificationPreferencesForm');
+                
+                // Set form values
+                form.emailNotifications.checked = preferences.emailNotifications;
+                form.statusUpdates.checked = preferences.statusUpdates;
+                form.newComments.checked = preferences.newComments;
+                form.newTickets.checked = preferences.newTickets;
+                form.adminComments.checked = preferences.adminComments;
+            } catch (error) {
+                console.error('Error loading notification preferences:', error);
+            }
+        }
+
+        // Toggle notification preferences modal
+        function toggleNotificationPreferences() {
+            const modal = document.getElementById('notificationPreferencesModal');
+            modal.classList.toggle('hidden');
+            modal.classList.toggle('flex');
+            
+            if (!modal.classList.contains('hidden')) {
+                loadNotificationPreferences();
+            }
+        }
+
+        // Handle notification preferences form submission
+        document.getElementById('notificationPreferencesForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const preferences = {
+                emailNotifications: formData.get('emailNotifications') === 'on',
+                statusUpdates: formData.get('statusUpdates') === 'on',
+                newComments: formData.get('newComments') === 'on',
+                newTickets: formData.get('newTickets') === 'on',
+                adminComments: formData.get('adminComments') === 'on'
+            };
+
+            try {
+                const response = await fetch('/api/notifications/preferences', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(preferences)
+                });
+
+                if (!response.ok) throw new Error('Failed to update preferences');
+                
+                toggleNotificationPreferences();
+                showToast('Notification preferences updated');
+            } catch (error) {
+                console.error('Error updating notification preferences:', error);
+                showToast('Failed to update notification preferences');
+            }
+        });
+
+        // Initialize notifications
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotifications();
+            // ... existing initialization code ...
+        });
     </script>
+
+    <style>
+        /* ... existing styles ... */
+
+        /* Enhanced notification styles */
+        .notifications-panel {
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            transition: all 0.2s ease;
+        }
+
+        .notification-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Modal styles */
+        #notificationPreferencesModal {
+            transition: opacity 0.3s ease;
+        }
+
+        #notificationPreferencesModal.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #notificationPreferencesModal.flex {
+            opacity: 1;
+        }
+    </style>
 </body>
 </html> 

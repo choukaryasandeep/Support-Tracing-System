@@ -3,6 +3,7 @@ module github.com/choukaryasandeep/support-ticket-system
 go 1.23.3
 
 require (
+	github.com/go-chi/chi v1.5.5
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	go.mongodb.org/mongo-driver v1.17.3
@@ -10,7 +11,6 @@ require (
 )
 
 require (
-	github.com/go-chi/chi v1.5.5 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect

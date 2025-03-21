@@ -247,6 +247,15 @@ func SetupRouter() http.Handler {
 			r.Post("/{id}/comments", controllers.TicketAPI.AddComment)
 		})
 
+		// API routes for notifications
+		r.Route("/api/notifications", func(r chi.Router) {
+			r.Get("/", controllers.NotificationAPI.GetUserNotifications)
+			r.Put("/{id}/read", controllers.NotificationAPI.MarkNotificationAsRead)
+			r.Put("/read-all", controllers.NotificationAPI.MarkAllNotificationsAsRead)
+			r.Get("/preferences", controllers.NotificationAPI.GetNotificationPreferences)
+			r.Put("/preferences", controllers.NotificationAPI.UpdateNotificationPreferences)
+		})
+
 		// Profile route - redirect to dashboard
 		r.Get("/profile", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/dashboard", http.StatusFound)

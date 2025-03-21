@@ -1,14 +1,14 @@
 package controllers
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/choukaryasandeep/support-ticket-system/config"
@@ -16,11 +16,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type TicketController struct{}
+type TicketController struct {
+	db *mongo.Database
+}
 
-var TicketAPI = &TicketController{}
+var TicketAPI TicketController
 
 type CreateTicketRequest struct {
 	Title       string          `json:"title"`
@@ -30,6 +33,22 @@ type CreateTicketRequest struct {
 }
 
 type CommentRequest struct {
+	Content string `json:"content"`
+}
+
+type UpdateStatusRequest struct {
+	Status string `json:"status"`
+}
+
+type UpdatePriorityRequest struct {
+	Priority string `json:"priority"`
+}
+
+type AssignTicketRequest struct {
+	AgentID string `json:"agent_id"`
+}
+
+type AddCommentRequest struct {
 	Content string `json:"content"`
 }
 
@@ -43,6 +62,12 @@ func init() {
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		panic(fmt.Sprintf("Failed to create upload directory: %v", err))
 	}
+}
+
+// createNotification creates a new notification in the database
+func createNotification(ctx context.Context, notification models.Notification) error {
+	_, err := config.GetCollection("notifications").InsertOne(ctx, notification)
+	return err
 }
 
 // GetUserTickets returns all tickets for the current user
@@ -184,19 +209,22 @@ func (c *TicketController) GetTicketDetails(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Get user information from context
-	userIDStr := r.Context().Value("user_id").(string)
+	userIDStr, ok := r.Context().Value("user_id").(string)
+	if !ok {
+		log.Printf("Error: user_id not found in context\n")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
 		log.Printf("Error converting user ID: %v\n", err)
-		http.Error(w, "Invalid user ID", http.StatusInternalServerError)
+		http.Error(w, "Invalid user ID", http.StatusUnauthorized)
 		return
 	}
-	userRole := r.Context().Value("user_role").(string)
-
-	// Only allow admin users to view ticket details
-	if userRole != "admin" {
-		log.Printf("User %s with role %s attempted to access ticket details\n", userID.Hex(), userRole)
-		http.Error(w, "Unauthorized access to ticket details", http.StatusForbidden)
+	userRole, ok := r.Context().Value("user_role").(string)
+	if !ok {
+		log.Printf("Error: user_role not found in context\n")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -205,6 +233,30 @@ func (c *TicketController) GetTicketDetails(w http.ResponseWriter, r *http.Reque
 	if err := config.GetCollection("tickets").FindOne(r.Context(), bson.M{"_id": ticketID}).Decode(&ticket); err != nil {
 		log.Printf("Ticket not found: %v\n", err)
 		http.Error(w, "Ticket not found", http.StatusNotFound)
+		return
+	}
+
+	// Check access permissions based on role
+	switch userRole {
+	case "admin":
+		// Admins can view all tickets
+	case "agent":
+		// Agents can view tickets they created or are assigned to
+		if ticket.CreatedBy != userID && (ticket.AssignedTo == nil || *ticket.AssignedTo != userID) {
+			log.Printf("Agent %s attempted to access ticket %s without permission\n", userID.Hex(), ticketID.Hex())
+			http.Error(w, "Unauthorized access to ticket details", http.StatusForbidden)
+			return
+		}
+	case "user":
+		// Users can only view their own tickets
+		if ticket.CreatedBy != userID {
+			log.Printf("User %s attempted to access ticket %s without permission\n", userID.Hex(), ticketID.Hex())
+			http.Error(w, "Unauthorized access to ticket details", http.StatusForbidden)
+			return
+		}
+	default:
+		log.Printf("Invalid user role: %s\n", userRole)
+		http.Error(w, "Invalid user role", http.StatusForbidden)
 		return
 	}
 
@@ -233,7 +285,7 @@ func (c *TicketController) GetTicketDetails(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	log.Printf("Returning ticket details for ticket %s to admin user %s\n", ticketID.Hex(), userID.Hex())
+	log.Printf("Returning ticket details for ticket %s to user %s with role %s\n", ticketID.Hex(), userID.Hex(), userRole)
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -273,101 +325,256 @@ func (c *TicketController) GetTicketComments(w http.ResponseWriter, r *http.Requ
 
 // AddComment adds a new comment to a ticket
 func (c *TicketController) AddComment(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	ticketID := chi.URLParam(r, "id")
+	var comment struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&comment); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
 
-	ticketID, err := primitive.ObjectIDFromHex(chi.URLParam(r, "id"))
+	// Get user information from context
+	userIDStr := r.Context().Value("user_id").(string)
+	userID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		log.Printf("Error converting user ID: %v\n", err)
+		http.Error(w, "Invalid user ID", http.StatusUnauthorized)
+		return
+	}
+
+	userRole := r.Context().Value("user_role").(string)
+
+	// First check if the ticket exists and user has access
+	var ticket models.Ticket
+	objID, err := primitive.ObjectIDFromHex(ticketID)
 	if err != nil {
 		http.Error(w, "Invalid ticket ID", http.StatusBadRequest)
 		return
 	}
 
-	var req CommentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request data", http.StatusBadRequest)
+	if err := config.GetCollection("tickets").FindOne(r.Context(), bson.M{"_id": objID}).Decode(&ticket); err != nil {
+		http.Error(w, "Ticket not found", http.StatusNotFound)
 		return
 	}
 
-	if req.Content == "" {
-		http.Error(w, "Comment content is required", http.StatusBadRequest)
+	// Check access permissions based on role
+	switch userRole {
+	case "admin":
+		// Admins can comment on all tickets
+	case "agent":
+		// Agents can comment on tickets they created or are assigned to
+		if ticket.CreatedBy != userID && (ticket.AssignedTo == nil || *ticket.AssignedTo != userID) {
+			log.Printf("Agent %s attempted to comment on ticket %s without permission\n", userID.Hex(), ticketID)
+			http.Error(w, "Unauthorized to comment on this ticket", http.StatusForbidden)
+			return
+		}
+	case "user":
+		// Users can only comment on their own tickets
+		if ticket.CreatedBy != userID {
+			log.Printf("User %s attempted to comment on ticket %s without permission\n", userID.Hex(), ticketID)
+			http.Error(w, "Unauthorized to comment on this ticket", http.StatusForbidden)
+			return
+		}
+	default:
+		log.Printf("Invalid user role: %s\n", userRole)
+		http.Error(w, "Invalid user role", http.StatusForbidden)
 		return
 	}
 
-	userID := r.Context().Value("user_id").(primitive.ObjectID)
-	now := time.Now()
+	// Get user's name
+	var user models.User
+	if err := config.GetCollection("users").FindOne(r.Context(), bson.M{"_id": userID}).Decode(&user); err != nil {
+		log.Printf("Error fetching user: %v\n", err)
+		http.Error(w, "Error fetching user information", http.StatusInternalServerError)
+		return
+	}
 
-	comment := models.Comment{
+	// Create new comment
+	newComment := models.Comment{
 		ID:        primitive.NewObjectID(),
-		TicketID:  ticketID,
+		Content:   comment.Content,
 		UserID:    userID,
-		Content:   req.Content,
-		CreatedAt: now,
-		UpdatedAt: now,
+		UserName:  user.Name,
+		CreatedAt: time.Now(),
 	}
 
-	if _, err := config.GetCollection("comments").InsertOne(r.Context(), comment); err != nil {
-		http.Error(w, "Error creating comment", http.StatusInternalServerError)
-		return
-	}
-
-	// Update ticket's updated_at timestamp
-	_, err = config.GetCollection("tickets").UpdateOne(
+	result, err := config.GetCollection("tickets").UpdateOne(
 		r.Context(),
-		bson.M{"_id": ticketID},
-		bson.M{"$set": bson.M{"updated_at": now}},
+		bson.M{"_id": objID},
+		bson.M{
+			"$push": bson.M{"comments": newComment},
+			"$set":  bson.M{"updated_at": time.Now()},
+		},
 	)
 	if err != nil {
-		// Log the error but don't return it to the client
-		fmt.Printf("Error updating ticket timestamp: %v\n", err)
+		http.Error(w, "Failed to add comment", http.StatusInternalServerError)
+		return
+	}
+
+	if result.ModifiedCount == 0 {
+		http.Error(w, "Ticket not found", http.StatusNotFound)
+		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(comment)
+	json.NewEncoder(w).Encode(newComment)
 }
 
 // UpdateTicketStatus updates the status of a ticket
 func (c *TicketController) UpdateTicketStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Log the request details
+	log.Printf("Received status update request for ticket: %s\n", chi.URLParam(r, "id"))
+	log.Printf("Request headers: %+v\n", r.Header)
+
+	// Read and restore request body
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("Error reading request body: %v\n", err)
+		http.Error(w, "Error reading request body", http.StatusBadRequest)
+		return
+	}
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	log.Printf("Request body: %s\n", string(bodyBytes))
+
 	ticketID, err := primitive.ObjectIDFromHex(chi.URLParam(r, "id"))
 	if err != nil {
+		log.Printf("Error converting ticket ID: %v\n", err)
 		http.Error(w, "Invalid ticket ID", http.StatusBadRequest)
 		return
 	}
+
+	// Get user information from context
+	userIDStr, ok := r.Context().Value("user_id").(string)
+	if !ok {
+		log.Printf("Error: user_id not found in context\n")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	log.Printf("User ID from context: %s\n", userIDStr)
+
+	userID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		log.Printf("Error converting user ID: %v\n", err)
+		http.Error(w, "Invalid user ID", http.StatusUnauthorized)
+		return
+	}
+
+	userRole, ok := r.Context().Value("user_role").(string)
+	if !ok {
+		log.Printf("Error: user_role not found in context\n")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	log.Printf("User role from context: %s\n", userRole)
 
 	var req struct {
 		Status models.Status `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("Error decoding request body: %v\n", err)
 		http.Error(w, "Invalid request data", http.StatusBadRequest)
 		return
 	}
+	log.Printf("Requested status: %s\n", req.Status)
 
-	update := bson.M{
-		"$set": bson.M{
-			"status":     req.Status,
-			"updated_at": time.Now(),
-		},
+	// Validate status value
+	validStatuses := map[models.Status]bool{
+		models.StatusOpen:       true,
+		models.StatusInProgress: true,
+		models.StatusResolved:   true,
+		models.StatusClosed:     true,
 	}
 
-	// If status is "closed", set closed_at timestamp
-	if req.Status == models.StatusClosed {
-		now := time.Now()
-		update["$set"].(bson.M)["closed_at"] = now
+	if !validStatuses[req.Status] {
+		log.Printf("Invalid status value: %s\n", req.Status)
+		http.Error(w, "Invalid status value. Must be one of: open, in_progress, resolved, closed", http.StatusBadRequest)
+		return
+	}
+
+	// First check if the ticket exists and user has access
+	var ticket models.Ticket
+	if err := config.GetCollection("tickets").FindOne(r.Context(), bson.M{"_id": ticketID}).Decode(&ticket); err != nil {
+		log.Printf("Ticket not found: %v\n", err)
+		http.Error(w, "Ticket not found", http.StatusNotFound)
+		return
+	}
+
+	log.Printf("Found ticket: %s, created by: %s, assigned to: %v\n",
+		ticket.ID.Hex(), ticket.CreatedBy.Hex(), ticket.AssignedTo)
+
+	// Check access permissions based on role
+	switch userRole {
+	case "admin":
+		// Admins can update any ticket status
+		log.Printf("Admin %s updating ticket %s status\n", userID.Hex(), ticketID.Hex())
+	case "agent":
+		// Agents can only update tickets they created or are assigned to
+		if ticket.CreatedBy != userID && (ticket.AssignedTo == nil || *ticket.AssignedTo != userID) {
+			log.Printf("Agent %s attempted to update ticket %s without permission\n", userID.Hex(), ticketID.Hex())
+			http.Error(w, "Unauthorized to update this ticket", http.StatusForbidden)
+			return
+		}
+		log.Printf("Agent %s updating ticket %s\n", userID.Hex(), ticketID.Hex())
+	case "user":
+		// Users can only update their own tickets
+		if ticket.CreatedBy != userID {
+			log.Printf("User %s attempted to update ticket %s without permission\n", userID.Hex(), ticketID.Hex())
+			http.Error(w, "Unauthorized to update this ticket", http.StatusForbidden)
+			return
+		}
+		log.Printf("User %s updating ticket %s\n", userID.Hex(), ticketID.Hex())
+	default:
+		log.Printf("Invalid user role: %s\n", userRole)
+		http.Error(w, "Invalid user role", http.StatusForbidden)
+		return
+	}
+
+	// Update ticket status
+	update := bson.M{
+		"status":     req.Status,
+		"updated_at": time.Now(),
+	}
+
+	// Set closed_at if status is resolved or closed
+	if req.Status == models.StatusResolved || req.Status == models.StatusClosed {
+		update["closed_at"] = time.Now()
 	}
 
 	result, err := config.GetCollection("tickets").UpdateOne(
 		r.Context(),
 		bson.M{"_id": ticketID},
-		update,
+		bson.M{"$set": update},
 	)
 	if err != nil {
-		http.Error(w, "Error updating ticket", http.StatusInternalServerError)
+		log.Printf("Error updating ticket status: %v\n", err)
+		http.Error(w, "Error updating ticket status", http.StatusInternalServerError)
 		return
 	}
 
 	if result.MatchedCount == 0 {
+		log.Printf("No ticket found with ID: %s\n", ticketID.Hex())
 		http.Error(w, "Ticket not found", http.StatusNotFound)
 		return
+	}
+
+	// Create notification for status update
+	notification := models.Notification{
+		UserID:    ticket.CreatedBy,
+		Type:      models.NotificationTypeStatusUpdate,
+		Title:     "Ticket Status Updated",
+		Message:   fmt.Sprintf("Ticket #%s status has been updated to %s", ticket.ID.Hex(), req.Status),
+		Read:      false,
+		CreatedAt: time.Now(),
+		TicketID:  ticket.ID,
+	}
+
+	_, err = config.GetCollection("notifications").InsertOne(r.Context(), notification)
+	if err != nil {
+		log.Printf("Error creating notification: %v\n", err)
+		// Don't return error here, as the status update was successful
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -425,48 +632,6 @@ func (c *TicketController) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(ticket)
-}
-
-func (c *TicketController) saveAttachment(fileHeader *multipart.FileHeader) (models.Attachment, error) {
-	// Validate file size
-	if fileHeader.Size > maxFileSize {
-		return models.Attachment{}, fmt.Errorf("file size exceeds maximum limit of 10 MB")
-	}
-
-	// Open uploaded file
-	file, err := fileHeader.Open()
-	if err != nil {
-		return models.Attachment{}, err
-	}
-	defer file.Close()
-
-	// Create unique filename
-	filename := primitive.NewObjectID().Hex() + filepath.Ext(fileHeader.Filename)
-	filepath := filepath.Join(uploadDir, filename)
-
-	// Create destination file
-	dst, err := os.Create(filepath)
-	if err != nil {
-		return models.Attachment{}, err
-	}
-	defer dst.Close()
-
-	// Copy file contents
-	if _, err := io.Copy(dst, file); err != nil {
-		return models.Attachment{}, err
-	}
-
-	// Create attachment record
-	attachment := models.Attachment{
-		ID:         primitive.NewObjectID(),
-		FileName:   fileHeader.Filename,
-		FileType:   fileHeader.Header.Get("Content-Type"),
-		FilePath:   filepath,
-		FileSize:   fileHeader.Size,
-		UploadedAt: time.Now(),
-	}
-
-	return attachment, nil
 }
 
 // AssignTicket assigns a ticket to an agent
@@ -638,4 +803,12 @@ func (c *TicketController) UpdateTicketPriority(w http.ResponseWriter, r *http.R
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Ticket priority updated successfully"})
+}
+
+func (tc *TicketController) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
+	// ... existing code ...
+}
+
+func InitControllers(db *mongo.Database) {
+	TicketAPI = TicketController{db: db}
 }
