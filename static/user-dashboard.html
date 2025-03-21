@@ -248,9 +248,7 @@
                 
                 document.getElementById('myTickets').textContent = tickets.length;
                 document.getElementById('openTickets').textContent = tickets.filter(t => t.status === 'open').length;
-                document.getElementById('resolvedTickets').textContent = tickets.filter(t => 
-                    t.status === 'resolved' && new Date(t.updated_at) >= today
-                ).length;
+                document.getElementById('resolvedTickets').textContent = tickets.filter(t => t.status === 'resolved').length;
 
                 // Get user details for assigned agents
                 for (let ticket of tickets) {
@@ -263,6 +261,7 @@
                             }
                         } catch (error) {
                             console.error('Error fetching agent details:', error);
+                            ticket.assigned_to_name = 'Unknown';
                         }
                     }
                 }
@@ -283,17 +282,17 @@
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.id}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.title}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.assigned_to_name || 'Unassigned'}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(ticket.status)}">
-                            ${ticket.status}
+                            ${formatStatus(ticket.status)}
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getPriorityColor(ticket.priority)}">
-                            ${ticket.priority}
+                            ${formatPriority(ticket.priority)}
                         </span>
                     </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.assigned_to_name || 'Unassigned'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         ${new Date(ticket.created_at).toLocaleDateString()}
                     </td>
@@ -330,6 +329,16 @@
                 urgent: 'bg-red-100 text-red-800'
             };
             return colors[priority] || 'bg-gray-100 text-gray-800';
+        }
+
+        // Format status text
+        function formatStatus(status) {
+            return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        // Format priority text
+        function formatPriority(priority) {
+            return priority.charAt(0).toUpperCase() + priority.slice(1);
         }
 
         // Filter tickets

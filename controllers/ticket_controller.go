@@ -169,14 +169,28 @@ func (c *TicketController) GetUserTickets(w http.ResponseWriter, r *http.Request
 	// Create response with additional user information
 	type TicketResponse struct {
 		models.Ticket
-		CreatedByName  string `json:"created_by_name"`
-		AssignedToName string `json:"assigned_to_name,omitempty"`
+		CreatedByName   string           `json:"created_by_name"`
+		AssignedToName  string           `json:"assigned_to_name,omitempty"`
+		FirstResponseAt *time.Time       `json:"first_response_at,omitempty"`
+		Comments        []models.Comment `json:"comments,omitempty"`
+		Category        string           `json:"category"`
+		Priority        string           `json:"priority"`
+		Status          string           `json:"status"`
+		CreatedAt       time.Time        `json:"created_at"`
+		UpdatedAt       time.Time        `json:"updated_at"`
+		ClosedAt        *time.Time       `json:"closed_at,omitempty"`
 	}
 
 	var response []TicketResponse
 	for _, ticket := range tickets {
 		tr := TicketResponse{
-			Ticket: ticket,
+			Ticket:    ticket,
+			Category:  string(ticket.Category),
+			Priority:  string(ticket.Priority),
+			Status:    string(ticket.Status),
+			CreatedAt: ticket.CreatedAt,
+			UpdatedAt: ticket.UpdatedAt,
+			ClosedAt:  ticket.ClosedAt,
 		}
 
 		// Add creator's name
@@ -188,6 +202,22 @@ func (c *TicketController) GetUserTickets(w http.ResponseWriter, r *http.Request
 		if ticket.AssignedTo != nil {
 			if assignee, ok := userMap[ticket.AssignedTo.Hex()]; ok {
 				tr.AssignedToName = assignee.Name
+			}
+		}
+
+		// Get comments for this ticket
+		commentsCursor, err := config.GetCollection("comments").Find(r.Context(), bson.M{"ticket_id": ticket.ID})
+		if err == nil {
+			defer commentsCursor.Close(r.Context())
+			var comments []models.Comment
+			if err := commentsCursor.All(r.Context(), &comments); err == nil {
+				tr.Comments = comments
+
+				// Set first_response_at to the timestamp of the first comment
+				if len(comments) > 0 {
+					firstCommentTime := comments[0].CreatedAt
+					tr.FirstResponseAt = &firstCommentTime
+				}
 			}
 		}
 

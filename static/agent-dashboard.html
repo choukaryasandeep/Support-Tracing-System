@@ -68,8 +68,8 @@
                         </div>
                         <div class="ml-5 w-0 flex-1">
                             <dl>
-                                <dt class="text-sm font-medium text-gray-500 truncate">Resolved Today</dt>
-                                <dd id="resolvedToday" class="text-lg font-semibold text-gray-900">-</dd>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Resolved Tickets</dt>
+                                <dd id="resolvedTickets" class="text-lg font-semibold text-gray-900">-</dd>
                             </dl>
                         </div>
                     </div>
@@ -161,9 +161,7 @@
                 
                 document.getElementById('assignedTickets').textContent = tickets.filter(t => t.assigned_to === currentUser.id).length;
                 document.getElementById('inProgressTickets').textContent = tickets.filter(t => t.status === 'in_progress').length;
-                document.getElementById('resolvedToday').textContent = tickets.filter(t => 
-                    t.status === 'resolved' && new Date(t.updated_at) >= today
-                ).length;
+                document.getElementById('resolvedTickets').textContent = tickets.filter(t => t.status === 'resolved').length;
 
                 // Get user details for tickets that don't have names
                 for (let ticket of tickets) {
@@ -194,30 +192,25 @@
 
             tickets.forEach(ticket => {
                 const tr = document.createElement('tr');
-                // Create action buttons
-                const actionButtons = `
-                    <button onclick="viewTicket('${ticket.id}')" class="text-blue-600 hover:text-blue-900 mr-3">View</button>
-                `;
-
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.id}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticket.title}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.created_by_name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ticket.created_by_name || 'Unknown'}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(ticket.status)}">
-                            ${ticket.status}
+                            ${formatStatus(ticket.status)}
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getPriorityColor(ticket.priority)}">
-                            ${ticket.priority}
+                            ${formatPriority(ticket.priority)}
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         ${new Date(ticket.created_at).toLocaleDateString()}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        ${actionButtons}
+                        <button onclick="viewTicket('${ticket.id}')" class="text-blue-600 hover:text-blue-900 mr-3">View</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -288,6 +281,16 @@
         window.addEventListener('beforeunload', () => {
             // Clean up any resources if needed
         });
+
+        // Format status text
+        function formatStatus(status) {
+            return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        // Format priority text
+        function formatPriority(priority) {
+            return priority.charAt(0).toUpperCase() + priority.slice(1);
+        }
     </script>
 
     <style>

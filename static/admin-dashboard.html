@@ -69,8 +69,8 @@
                         </div>
                         <div class="ml-5 w-0 flex-1">
                             <dl>
-                                <dt class="text-sm font-medium text-gray-500 truncate">Resolved Today</dt>
-                                <dd id="resolvedToday" class="text-lg font-semibold text-gray-900">-</dd>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Resolved Tickets</dt>
+                                <dd id="resolvedTickets" class="text-lg font-semibold text-gray-900">-</dd>
                             </dl>
                         </div>
                     </div>
@@ -304,18 +304,67 @@
                 
                 document.getElementById('totalTickets').textContent = tickets.length;
                 document.getElementById('openTickets').textContent = tickets.filter(t => t.status === 'open').length;
-                document.getElementById('resolvedToday').textContent = tickets.filter(t => 
-                    t.status === 'resolved' && new Date(t.updated_at) >= today
-                ).length;
+                document.getElementById('resolvedTickets').textContent = tickets.filter(t => t.status === 'resolved').length;
 
                 // Calculate average response time
+                console.log('All tickets:', tickets);
+                
                 const responseTimes = tickets
-                    .filter(t => t.first_response_at && t.created_at)
-                    .map(t => new Date(t.first_response_at) - new Date(t.created_at));
-                const avgResponseTime = responseTimes.length > 0 
-                    ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length / 1000 / 60)
-                    : 0;
-                document.getElementById('avgResponseTime').textContent = `${avgResponseTime} minutes`;
+                    .filter(t => {
+                        console.log('Checking ticket:', t.id);
+                        console.log('first_response_at:', t.first_response_at);
+                        console.log('has comments:', t.comments && t.comments.length > 0);
+                        
+                        // Check if ticket has first_response_at or has comments
+                        if (t.first_response_at) {
+                            console.log('Using first_response_at for ticket:', t.id);
+                            return true;
+                        }
+                        if (t.comments && t.comments.length > 0) {
+                            console.log('Using first comment for ticket:', t.id);
+                            return true;
+                        }
+                        console.log('No response data for ticket:', t.id);
+                        return false;
+                    })
+                    .map(t => {
+                        // Use first_response_at if available, otherwise use the first comment's timestamp
+                        const responseDate = t.first_response_at || (t.comments && t.comments.length > 0 ? t.comments[0].created_at : null);
+                        console.log('Response date for ticket', t.id, ':', responseDate);
+                        console.log('Created date for ticket', t.id, ':', t.created_at);
+                        
+                        if (responseDate && t.created_at) {
+                            const responseTime = new Date(responseDate).getTime() - new Date(t.created_at).getTime();
+                            console.log(`Ticket ${t.id} response time:`, responseTime, 'ms');
+                            return responseTime;
+                        }
+                        console.log('Missing dates for ticket:', t.id);
+                        return null;
+                    })
+                    .filter(time => time !== null); // Remove any null values
+                
+                console.log('Response times array:', responseTimes);
+                
+                let avgResponseTimeDisplay = '-';
+                if (responseTimes.length > 0) {
+                    const totalMilliseconds = responseTimes.reduce((a, b) => a + b, 0);
+                    console.log('Total milliseconds:', totalMilliseconds);
+                    const avgMilliseconds = totalMilliseconds / responseTimes.length;
+                    console.log('Average milliseconds:', avgMilliseconds);
+                    const avgMinutes = Math.round(avgMilliseconds / 1000 / 60);
+                    console.log('Average minutes:', avgMinutes);
+                    
+                    const hours = Math.floor(avgMinutes / 60);
+                    const minutes = avgMinutes % 60;
+                    
+                    if (hours > 0) {
+                        avgResponseTimeDisplay = `${hours}h ${minutes}m`;
+                    } else {
+                        avgResponseTimeDisplay = `${minutes}m`;
+                    }
+                    console.log('Final display value:', avgResponseTimeDisplay);
+                }
+                document.getElementById('avgResponseTime').textContent = avgResponseTimeDisplay;
 
                 // Update charts
                 updateStatusChart(tickets);
@@ -413,15 +462,28 @@
                         const resolvedCount = resolvedTickets.length;
                         
                         // Calculate average resolution time
-                        let avgResolutionTime = 0;
+                        let avgResolutionTime = '';
                         if (resolvedCount > 0) {
                             const totalResolutionTime = resolvedTickets.reduce((sum, ticket) => {
-                                if (ticket.resolved_at && ticket.created_at) {
-                                    return sum + (new Date(ticket.resolved_at) - new Date(ticket.created_at));
+                                // Use resolved_at if available, otherwise use updated_at
+                                const resolutionDate = ticket.resolved_at || ticket.updated_at;
+                                if (resolutionDate && ticket.created_at) {
+                                    const resolutionTime = new Date(resolutionDate) - new Date(ticket.created_at);
+                                    return sum + resolutionTime;
                                 }
                                 return sum;
                             }, 0);
-                            avgResolutionTime = Math.round(totalResolutionTime / resolvedCount / 1000 / 60); // in minutes
+                            
+                            // Convert to hours and minutes
+                            const totalMinutes = Math.round(totalResolutionTime / resolvedCount / 1000 / 60);
+                            const hours = Math.floor(totalMinutes / 60);
+                            const minutes = totalMinutes % 60;
+                            
+                            if (hours > 0) {
+                                avgResolutionTime = `${hours}h ${minutes}m`;
+                            } else {
+                                avgResolutionTime = `${minutes}m`;
+                            }
                         }
 
                         // Calculate response rate (percentage of resolved tickets)
@@ -432,7 +494,7 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${agent.name}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignedCount}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${resolvedCount}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${avgResolutionTime} minutes</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${avgResolutionTime}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${responseRate}%</td>
                         `;
                         tbody.appendChild(tr);
