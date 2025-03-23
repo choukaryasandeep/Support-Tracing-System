@@ -660,6 +660,42 @@ func (c *TicketController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get creator's information for the notification
+	var creator models.User
+	if err := config.GetCollection("users").FindOne(r.Context(), bson.M{"_id": userID}).Decode(&creator); err != nil {
+		log.Printf("Error fetching creator information: %v\n", err)
+	}
+
+	// Find all admin users to notify them
+	adminCursor, err := config.GetCollection("users").Find(r.Context(), bson.M{"role": "admin"})
+	if err != nil {
+		log.Printf("Error finding admin users: %v\n", err)
+	} else {
+		defer adminCursor.Close(r.Context())
+		var admins []models.User
+		if err := adminCursor.All(r.Context(), &admins); err != nil {
+			log.Printf("Error decoding admin users: %v\n", err)
+		} else {
+			// Create notifications for each admin
+			for _, admin := range admins {
+				notification := models.Notification{
+					ID:          primitive.NewObjectID(),
+					UserID:      admin.ID,
+					Type:        models.NotificationTypeNewTicket,
+					Title:       "New Ticket Created",
+					Message:     fmt.Sprintf("A new ticket '%s' has been created by %s", ticket.Title, creator.Name),
+					TicketID:    ticket.ID,
+					TicketTitle: ticket.Title,
+					Read:        false,
+					CreatedAt:   now,
+				}
+				if err := createNotification(r.Context(), notification); err != nil {
+					log.Printf("Error creating notification for admin %s: %v\n", admin.ID.Hex(), err)
+				}
+			}
+		}
+	}
+
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(ticket)
 }
@@ -749,6 +785,38 @@ func (c *TicketController) AssignTicket(w http.ResponseWriter, r *http.Request) 
 		log.Printf("No ticket found with ID: %s\n", ticketID.Hex())
 		http.Error(w, "Ticket not found", http.StatusNotFound)
 		return
+	}
+
+	// Create notification for the ticket creator (user)
+	userNotification := models.Notification{
+		ID:          primitive.NewObjectID(),
+		UserID:      ticket.CreatedBy,
+		Type:        models.NotificationTypeTicketAssigned,
+		Title:       "Ticket Assigned",
+		Message:     fmt.Sprintf("Your ticket '%s' has been assigned to %s", ticket.Title, agent.Name),
+		TicketID:    ticketID,
+		TicketTitle: ticket.Title,
+		Read:        false,
+		CreatedAt:   time.Now(),
+	}
+	if err := createNotification(r.Context(), userNotification); err != nil {
+		log.Printf("Error creating notification for user %s: %v\n", ticket.CreatedBy.Hex(), err)
+	}
+
+	// Create notification for the assigned agent
+	agentNotification := models.Notification{
+		ID:          primitive.NewObjectID(),
+		UserID:      agentID,
+		Type:        models.NotificationTypeTicketAssigned,
+		Title:       "New Ticket Assignment",
+		Message:     fmt.Sprintf("You have been assigned to ticket '%s'", ticket.Title),
+		TicketID:    ticketID,
+		TicketTitle: ticket.Title,
+		Read:        false,
+		CreatedAt:   time.Now(),
+	}
+	if err := createNotification(r.Context(), agentNotification); err != nil {
+		log.Printf("Error creating notification for agent %s: %v\n", agentID.Hex(), err)
 	}
 
 	// Add a system comment about the assignment

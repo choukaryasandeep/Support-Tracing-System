@@ -16,6 +16,25 @@
                 </div>
                 <div class="flex items-center">
                     <span id="userInfo" class="mr-4 text-gray-600"></span>
+                    <div class="relative mr-4">
+                        <button onclick="toggleNotifications()" class="relative p-2 text-gray-600 hover:text-gray-800 focus:outline-none">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                            </svg>
+                            <span id="notificationBadge" class="absolute top-0 right-0 block h-4 w-4 rounded-full bg-red-500 text-white text-xs text-center leading-4 hidden">0</span>
+                        </button>
+                        <div id="notificationDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg z-50">
+                            <div class="p-4 border-b">
+                                <h3 class="text-lg font-semibold">Notifications</h3>
+                            </div>
+                            <div id="notificationList" class="max-h-96 overflow-y-auto">
+                                <!-- Notifications will be populated here -->
+                            </div>
+                            <div class="p-4 border-t">
+                                <button onclick="markAllNotificationsAsRead()" class="text-sm text-blue-500 hover:text-blue-700">Mark all as read</button>
+                            </div>
+                        </div>
+                    </div>
                     <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Logout</button>
                 </div>
             </div>
@@ -175,20 +194,6 @@
         </div>
 
         <div class="dashboard-container">
-            <div class="notifications-panel">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold">Notifications</h3>
-                    <div class="flex space-x-2">
-                        <button onclick="markAllAsRead()" class="text-sm text-blue-600 hover:text-blue-800">
-                            Mark all as read
-                        </button>
-                        <button onclick="toggleNotificationPreferences()" class="text-sm text-blue-600 hover:text-blue-800">
-                            Preferences
-                        </button>
-                    </div>
-                </div>
-                <div id="notifications-container" class="space-y-2"></div>
-            </div>
         </div>
 
         <!-- Notification Preferences Modal -->
@@ -261,6 +266,7 @@
         let currentUser;
         let eventSource;
         let notifications = [];
+        let unreadCount = 0;
 
         // Check authentication
         async function checkAuth() {
@@ -667,6 +673,7 @@
         // Initialize dashboard when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             checkAuth();
+            fetchNotifications(); // Fetch notifications when page loads
         });
 
         // Clean up when the page is unloaded
@@ -806,6 +813,96 @@
             loadNotifications();
             // ... existing initialization code ...
         });
+
+        // Function to toggle notification dropdown
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notificationDropdown');
+            dropdown.classList.toggle('hidden');
+            if (!dropdown.classList.contains('hidden')) {
+                fetchNotifications();
+            }
+        }
+
+        // Function to fetch notifications
+        async function fetchNotifications() {
+            try {
+                const response = await fetch('/api/notifications');
+                if (!response.ok) throw new Error('Failed to fetch notifications');
+                notifications = await response.json();
+                updateNotificationUI();
+            } catch (error) {
+                console.error('Error fetching notifications:', error);
+            }
+        }
+
+        // Function to update notification UI
+        function updateNotificationUI() {
+            const notificationList = document.getElementById('notificationList');
+            const badge = document.getElementById('notificationBadge');
+            notificationList.innerHTML = '';
+            unreadCount = 0;
+
+            notifications.forEach(notification => {
+                if (!notification.read) unreadCount++;
+                const notificationElement = createNotificationElement(notification);
+                notificationList.appendChild(notificationElement);
+            });
+
+            // Update badge
+            if (unreadCount > 0) {
+                badge.textContent = unreadCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        // Function to create notification element
+        function createNotificationElement(notification) {
+            const div = document.createElement('div');
+            div.className = `p-4 border-b ${notification.read ? 'bg-gray-50' : 'bg-white'}`;
+            div.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h4 class="font-semibold">${notification.title}</h4>
+                        <p class="text-sm text-gray-600">${notification.message}</p>
+                        <p class="text-xs text-gray-500 mt-1">${new Date(notification.created_at).toLocaleString()}</p>
+                    </div>
+                    ${!notification.read ? `
+                        <button onclick="markNotificationAsRead('${notification.id}')" class="text-sm text-blue-500 hover:text-blue-700">
+                            Mark as read
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+            return div;
+        }
+
+        // Function to mark a notification as read
+        async function markNotificationAsRead(notificationId) {
+            try {
+                const response = await fetch(`/api/notifications/${notificationId}/read`, {
+                    method: 'PUT'
+                });
+                if (!response.ok) throw new Error('Failed to mark notification as read');
+                await fetchNotifications();
+            } catch (error) {
+                console.error('Error marking notification as read:', error);
+            }
+        }
+
+        // Function to mark all notifications as read
+        async function markAllNotificationsAsRead() {
+            try {
+                const response = await fetch('/api/notifications/read-all', {
+                    method: 'PUT'
+                });
+                if (!response.ok) throw new Error('Failed to mark all notifications as read');
+                await fetchNotifications();
+            } catch (error) {
+                console.error('Error marking all notifications as read:', error);
+            }
+        }
     </script>
 
     <style>
