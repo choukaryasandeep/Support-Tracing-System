@@ -681,67 +681,108 @@
             // Clean up any resources if needed
         });
 
-        // Load notifications
-        async function loadNotifications() {
+        // Function to toggle notification dropdown
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notificationDropdown');
+            dropdown.classList.toggle('hidden');
+            if (!dropdown.classList.contains('hidden')) {
+                fetchNotifications();
+            }
+        }
+
+        // Function to fetch notifications
+        async function fetchNotifications() {
             try {
                 const response = await fetch('/api/notifications');
                 if (!response.ok) throw new Error('Failed to fetch notifications');
-                
-                const notifications = await response.json();
-                updateNotificationsUI(notifications);
+                notifications = await response.json();
+                updateNotificationUI();
             } catch (error) {
-                console.error('Error loading notifications:', error);
+                console.error('Error fetching notifications:', error);
             }
         }
 
-        // Update notifications UI
-        function updateNotificationsUI(notifications) {
-            const container = document.getElementById('notifications-container');
-            if (!container) return;
+        // Function to update notification UI
+        function updateNotificationUI() {
+            const notificationList = document.getElementById('notificationList');
+            const badge = document.getElementById('notificationBadge');
+            notificationList.innerHTML = '';
+            unreadCount = 0;
 
-            container.innerHTML = (notifications || []).map(notification => `
-                <div class="notification-item ${notification.read ? 'bg-gray-50' : 'bg-white'} p-4 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
-                     onclick="handleNotificationClick('${notification.id}', '${notification.ticketId}')">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <h4 class="font-medium text-gray-900">${notification.title}</h4>
-                            <p class="text-sm text-gray-600 mt-1">${notification.message}</p>
-                            <p class="text-xs text-gray-500 mt-2">${new Date(notification.createdAt).toLocaleString()}</p>
-                        </div>
-                        ${!notification.read ? '<span class="w-2 h-2 bg-blue-600 rounded-full"></span>' : ''}
-                    </div>
-                </div>
-            `).join('');
+            notifications.forEach(notification => {
+                if (!notification.read) unreadCount++;
+                const notificationElement = createNotificationElement(notification);
+                notificationList.appendChild(notificationElement);
+            });
+
+            // Update badge
+            if (unreadCount > 0) {
+                badge.textContent = unreadCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
         }
 
-        // Handle notification click
-        async function handleNotificationClick(notificationId, ticketId) {
+        // Function to create notification element
+        function createNotificationElement(notification) {
+            const div = document.createElement('div');
+            div.className = `p-4 border-b ${notification.read ? 'bg-gray-50' : 'bg-white'}`;
+            
+            // Extract ticket ID from the message if it exists
+            let message = notification.message;
+            if (message.includes('Ticket #')) {
+                const ticketId = message.match(/Ticket #([a-f0-9]+)/)[1];
+                // Fetch ticket details to get the title
+                fetch(`/api/tickets/${ticketId}`)
+                    .then(response => response.json())
+                    .then(ticket => {
+                        message = message.replace(`Ticket #${ticketId}`, `Ticket "${ticket.title}"`);
+                        div.querySelector('.notification-message').textContent = message;
+                    })
+                    .catch(error => console.error('Error fetching ticket details:', error));
+            }
+
+            div.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h4 class="font-semibold">${notification.title}</h4>
+                        <p class="text-sm text-gray-600 notification-message">${message}</p>
+                        <p class="text-xs text-gray-500 mt-1">${new Date(notification.created_at).toLocaleString()}</p>
+                    </div>
+                    ${!notification.read ? `
+                        <button onclick="markNotificationAsRead('${notification.id}')" class="text-sm text-blue-500 hover:text-blue-700">
+                            Mark as read
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+            return div;
+        }
+
+        // Function to mark a notification as read
+        async function markNotificationAsRead(notificationId) {
             try {
-                // Mark notification as read
-                await fetch(`/api/notifications/${notificationId}/read`, {
+                const response = await fetch(`/api/notifications/${notificationId}/read`, {
                     method: 'PUT'
                 });
-
-                // Navigate to ticket
-                window.location.href = `/tickets/${ticketId}`;
+                if (!response.ok) throw new Error('Failed to mark notification as read');
+                await fetchNotifications();
             } catch (error) {
-                console.error('Error handling notification click:', error);
+                console.error('Error marking notification as read:', error);
             }
         }
 
-        // Mark all notifications as read
-        async function markAllAsRead() {
+        // Function to mark all notifications as read
+        async function markAllNotificationsAsRead() {
             try {
                 const response = await fetch('/api/notifications/read-all', {
                     method: 'PUT'
                 });
-                if (!response.ok) throw new Error('Failed to mark notifications as read');
-                
-                await loadNotifications();
-                showToast('All notifications marked as read');
+                if (!response.ok) throw new Error('Failed to mark all notifications as read');
+                await fetchNotifications();
             } catch (error) {
-                console.error('Error marking notifications as read:', error);
-                showToast('Failed to mark notifications as read');
+                console.error('Error marking all notifications as read:', error);
             }
         }
 
@@ -807,125 +848,10 @@
                 showToast('Failed to update notification preferences');
             }
         });
-
-        // Initialize notifications
-        document.addEventListener('DOMContentLoaded', function() {
-            loadNotifications();
-            // ... existing initialization code ...
-        });
-
-        // Function to toggle notification dropdown
-        function toggleNotifications() {
-            const dropdown = document.getElementById('notificationDropdown');
-            dropdown.classList.toggle('hidden');
-            if (!dropdown.classList.contains('hidden')) {
-                fetchNotifications();
-            }
-        }
-
-        // Function to fetch notifications
-        async function fetchNotifications() {
-            try {
-                const response = await fetch('/api/notifications');
-                if (!response.ok) throw new Error('Failed to fetch notifications');
-                notifications = await response.json();
-                updateNotificationUI();
-            } catch (error) {
-                console.error('Error fetching notifications:', error);
-            }
-        }
-
-        // Function to update notification UI
-        function updateNotificationUI() {
-            const notificationList = document.getElementById('notificationList');
-            const badge = document.getElementById('notificationBadge');
-            notificationList.innerHTML = '';
-            unreadCount = 0;
-
-            notifications.forEach(notification => {
-                if (!notification.read) unreadCount++;
-                const notificationElement = createNotificationElement(notification);
-                notificationList.appendChild(notificationElement);
-            });
-
-            // Update badge
-            if (unreadCount > 0) {
-                badge.textContent = unreadCount;
-                badge.classList.remove('hidden');
-            } else {
-                badge.classList.add('hidden');
-            }
-        }
-
-        // Function to create notification element
-        function createNotificationElement(notification) {
-            const div = document.createElement('div');
-            div.className = `p-4 border-b ${notification.read ? 'bg-gray-50' : 'bg-white'}`;
-            div.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h4 class="font-semibold">${notification.title}</h4>
-                        <p class="text-sm text-gray-600">${notification.message}</p>
-                        <p class="text-xs text-gray-500 mt-1">${new Date(notification.created_at).toLocaleString()}</p>
-                    </div>
-                    ${!notification.read ? `
-                        <button onclick="markNotificationAsRead('${notification.id}')" class="text-sm text-blue-500 hover:text-blue-700">
-                            Mark as read
-                        </button>
-                    ` : ''}
-                </div>
-            `;
-            return div;
-        }
-
-        // Function to mark a notification as read
-        async function markNotificationAsRead(notificationId) {
-            try {
-                const response = await fetch(`/api/notifications/${notificationId}/read`, {
-                    method: 'PUT'
-                });
-                if (!response.ok) throw new Error('Failed to mark notification as read');
-                await fetchNotifications();
-            } catch (error) {
-                console.error('Error marking notification as read:', error);
-            }
-        }
-
-        // Function to mark all notifications as read
-        async function markAllNotificationsAsRead() {
-            try {
-                const response = await fetch('/api/notifications/read-all', {
-                    method: 'PUT'
-                });
-                if (!response.ok) throw new Error('Failed to mark all notifications as read');
-                await fetchNotifications();
-            } catch (error) {
-                console.error('Error marking all notifications as read:', error);
-            }
-        }
     </script>
 
     <style>
         /* ... existing styles ... */
-
-        /* Enhanced notification styles */
-        .notifications-panel {
-            background: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            padding: 1rem;
-            max-height: 600px;
-            overflow-y: auto;
-        }
-
-        .notification-item {
-            transition: all 0.2s ease;
-        }
-
-        .notification-item:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
 
         /* Modal styles */
         #notificationPreferencesModal {

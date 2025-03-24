@@ -254,6 +254,7 @@
                 const response = await fetch('/api/notifications');
                 if (!response.ok) throw new Error('Failed to fetch notifications');
                 notifications = await response.json();
+                console.log('Fetched notifications:', notifications); // Debug log
                 updateNotificationUI();
             } catch (error) {
                 console.error('Error fetching notifications:', error);
@@ -264,8 +265,19 @@
         function updateNotificationUI() {
             const notificationList = document.getElementById('notificationList');
             const badge = document.getElementById('notificationBadge');
+            if (!notificationList) {
+                console.error('Notification list element not found');
+                return;
+            }
+
             notificationList.innerHTML = '';
             unreadCount = 0;
+
+            if (!notifications || notifications.length === 0) {
+                notificationList.innerHTML = '<div class="p-4 text-center text-gray-500">No notifications</div>';
+                badge.classList.add('hidden');
+                return;
+            }
 
             notifications.forEach(notification => {
                 if (!notification.read) unreadCount++;
@@ -286,11 +298,29 @@
         function createNotificationElement(notification) {
             const div = document.createElement('div');
             div.className = `p-4 border-b ${notification.read ? 'bg-gray-50' : 'bg-white'}`;
+            
+            // Extract ticket ID from the message if it exists
+            let message = notification.message;
+            if (message && message.includes('Ticket #')) {
+                const ticketId = message.match(/Ticket #([a-f0-9]+)/)[1];
+                // Fetch ticket details to get the title
+                fetch(`/api/tickets/${ticketId}`)
+                    .then(response => response.json())
+                    .then(ticket => {
+                        message = message.replace(`Ticket #${ticketId}`, `Ticket "${ticket.title}"`);
+                        const messageElement = div.querySelector('.notification-message');
+                        if (messageElement) {
+                            messageElement.textContent = message;
+                        }
+                    })
+                    .catch(error => console.error('Error fetching ticket details:', error));
+            }
+
             div.innerHTML = `
                 <div class="flex justify-between items-start">
                     <div>
-                        <h4 class="font-semibold">${notification.title}</h4>
-                        <p class="text-sm text-gray-600">${notification.message}</p>
+                        <h4 class="font-semibold">${notification.title || 'Notification'}</h4>
+                        <p class="text-sm text-gray-600 notification-message">${message || ''}</p>
                         <p class="text-xs text-gray-500 mt-1">${new Date(notification.created_at).toLocaleString()}</p>
                     </div>
                     ${!notification.read ? `
@@ -519,8 +549,13 @@
         }
 
         // Initialize dashboard
-        checkAuth();
-        fetchNotifications();
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            // Initialize notifications
+            fetchNotifications();
+            // Set up periodic refresh of notifications
+            setInterval(fetchNotifications, 30000); // Refresh every 30 seconds
+        });
     </script>
 </body>
 </html> 

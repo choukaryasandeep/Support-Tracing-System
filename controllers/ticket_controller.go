@@ -595,7 +595,7 @@ func (c *TicketController) UpdateTicketStatus(w http.ResponseWriter, r *http.Req
 		UserID:    ticket.CreatedBy,
 		Type:      models.NotificationTypeStatusUpdate,
 		Title:     "Ticket Status Updated",
-		Message:   fmt.Sprintf("Ticket #%s status has been updated to %s", ticket.ID.Hex(), req.Status),
+		Message:   fmt.Sprintf("Ticket %s status has been updated to %s", ticket.Title, req.Status),
 		Read:      false,
 		CreatedAt: time.Now(),
 		TicketID:  ticket.ID,
