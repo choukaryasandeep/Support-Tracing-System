@@ -313,41 +313,41 @@
                 document.getElementById('resolvedTickets').textContent = tickets.filter(t => t.status === 'resolved').length;
 
                 // Calculate average response time
-                console.log('All tickets:', tickets);
+                console.log('Calculating average response time for all tickets');
                 
                 const responseTimes = tickets
                     .filter(t => {
-                        console.log('Checking ticket:', t.id);
-                        console.log('first_response_at:', t.first_response_at);
-                        console.log('has comments:', t.comments && t.comments.length > 0);
-                        
                         // Check if ticket has first_response_at or has comments
                         if (t.first_response_at) {
-                            console.log('Using first_response_at for ticket:', t.id);
+                            console.log('Ticket has first_response_at:', t.id, t.first_response_at);
                             return true;
                         }
                         if (t.comments && t.comments.length > 0) {
-                            console.log('Using first comment for ticket:', t.id);
+                            console.log('Ticket has comments:', t.id, t.comments[0].created_at);
                             return true;
                         }
-                        console.log('No response data for ticket:', t.id);
+                        console.log('Ticket has no response:', t.id);
                         return false;
                     })
                     .map(t => {
                         // Use first_response_at if available, otherwise use the first comment's timestamp
                         const responseDate = t.first_response_at || (t.comments && t.comments.length > 0 ? t.comments[0].created_at : null);
-                        console.log('Response date for ticket', t.id, ':', responseDate);
-                        console.log('Created date for ticket', t.id, ':', t.created_at);
                         
                         if (responseDate && t.created_at) {
-                            const responseTime = new Date(responseDate).getTime() - new Date(t.created_at).getTime();
-                            console.log(`Ticket ${t.id} response time:`, responseTime, 'ms');
-                            return responseTime;
+                            const createdTime = new Date(t.created_at).getTime();
+                            const responseTime = new Date(responseDate).getTime();
+                            const timeDiff = responseTime - createdTime;
+                            
+                            console.log(`Ticket ${t.id}:
+                                Created: ${new Date(createdTime).toISOString()}
+                                Response: ${new Date(responseTime).toISOString()}
+                                Time Difference: ${timeDiff}ms (${Math.round(timeDiff/1000/60)} minutes)`);
+                            
+                            return timeDiff;
                         }
-                        console.log('Missing dates for ticket:', t.id);
                         return null;
                     })
-                    .filter(time => time !== null); // Remove any null values
+                    .filter(time => time !== null);
                 
                 console.log('Response times array:', responseTimes);
                 
@@ -357,6 +357,8 @@
                     console.log('Total milliseconds:', totalMilliseconds);
                     const avgMilliseconds = totalMilliseconds / responseTimes.length;
                     console.log('Average milliseconds:', avgMilliseconds);
+                    
+                    // Convert to minutes and round to nearest minute
                     const avgMinutes = Math.round(avgMilliseconds / 1000 / 60);
                     console.log('Average minutes:', avgMinutes);
                     
@@ -369,6 +371,8 @@
                         avgResponseTimeDisplay = `${minutes}m`;
                     }
                     console.log('Final display value:', avgResponseTimeDisplay);
+                } else {
+                    console.log('No tickets with responses found');
                 }
                 document.getElementById('avgResponseTime').textContent = avgResponseTimeDisplay;
 
@@ -785,69 +789,6 @@
                 console.error('Error marking all notifications as read:', error);
             }
         }
-
-        // Load notification preferences
-        async function loadNotificationPreferences() {
-            try {
-                const response = await fetch('/api/notifications/preferences');
-                if (!response.ok) throw new Error('Failed to fetch preferences');
-                
-                const preferences = await response.json();
-                const form = document.getElementById('notificationPreferencesForm');
-                
-                // Set form values
-                form.emailNotifications.checked = preferences.emailNotifications;
-                form.statusUpdates.checked = preferences.statusUpdates;
-                form.newComments.checked = preferences.newComments;
-                form.newTickets.checked = preferences.newTickets;
-                form.adminComments.checked = preferences.adminComments;
-            } catch (error) {
-                console.error('Error loading notification preferences:', error);
-            }
-        }
-
-        // Toggle notification preferences modal
-        function toggleNotificationPreferences() {
-            const modal = document.getElementById('notificationPreferencesModal');
-            modal.classList.toggle('hidden');
-            modal.classList.toggle('flex');
-            
-            if (!modal.classList.contains('hidden')) {
-                loadNotificationPreferences();
-            }
-        }
-
-        // Handle notification preferences form submission
-        document.getElementById('notificationPreferencesForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const preferences = {
-                emailNotifications: formData.get('emailNotifications') === 'on',
-                statusUpdates: formData.get('statusUpdates') === 'on',
-                newComments: formData.get('newComments') === 'on',
-                newTickets: formData.get('newTickets') === 'on',
-                adminComments: formData.get('adminComments') === 'on'
-            };
-
-            try {
-                const response = await fetch('/api/notifications/preferences', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(preferences)
-                });
-
-                if (!response.ok) throw new Error('Failed to update preferences');
-                
-                toggleNotificationPreferences();
-                showToast('Notification preferences updated');
-            } catch (error) {
-                console.error('Error updating notification preferences:', error);
-                showToast('Failed to update notification preferences');
-            }
-        });
     </script>
 
     <style>

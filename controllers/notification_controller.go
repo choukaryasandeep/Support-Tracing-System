@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/choukaryasandeep/support-ticket-system/config"
 	"github.com/choukaryasandeep/support-ticket-system/models"
@@ -142,73 +141,4 @@ func (c *NotificationController) MarkAllNotificationsAsRead(w http.ResponseWrite
 		"message": "All notifications marked as read",
 		"count":   result.ModifiedCount,
 	})
-}
-
-// GetNotificationPreferences returns the notification preferences for the current user
-func (c *NotificationController) GetNotificationPreferences(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	userID, err := primitive.ObjectIDFromHex(r.Context().Value("user_id").(string))
-	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
-		return
-	}
-
-	var preferences models.NotificationPreferences
-	err = config.GetCollection("notification_preferences").FindOne(
-		r.Context(),
-		bson.M{"user_id": userID},
-	).Decode(&preferences)
-
-	if err != nil {
-		// If no preferences found, return default preferences
-		preferences = models.NotificationPreferences{
-			UserID:             userID,
-			EmailNotifications: true,
-			StatusUpdates:      true,
-			NewComments:        true,
-			NewTickets:         true,
-			AdminComments:      true,
-			UpdatedAt:          time.Now(),
-		}
-	}
-
-	json.NewEncoder(w).Encode(preferences)
-}
-
-// UpdateNotificationPreferences updates the notification preferences for the current user
-func (c *NotificationController) UpdateNotificationPreferences(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	userID, err := primitive.ObjectIDFromHex(r.Context().Value("user_id").(string))
-	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
-		return
-	}
-
-	var preferences models.NotificationPreferences
-	if err := json.NewDecoder(r.Body).Decode(&preferences); err != nil {
-		http.Error(w, "Invalid request data", http.StatusBadRequest)
-		return
-	}
-
-	preferences.UserID = userID
-	preferences.UpdatedAt = time.Now()
-
-	// Upsert preferences
-	opts := options.Update().SetUpsert(true)
-	_, err = config.GetCollection("notification_preferences").UpdateOne(
-		r.Context(),
-		bson.M{"user_id": userID},
-		bson.M{"$set": preferences},
-		opts,
-	)
-	if err != nil {
-		log.Printf("Error updating notification preferences: %v\n", err)
-		http.Error(w, "Error updating notification preferences", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Notification preferences updated successfully"})
 }

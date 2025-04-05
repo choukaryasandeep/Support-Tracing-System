@@ -592,13 +592,15 @@ func (c *TicketController) UpdateTicketStatus(w http.ResponseWriter, r *http.Req
 
 	// Create notification for status update
 	notification := models.Notification{
-		UserID:    ticket.CreatedBy,
-		Type:      models.NotificationTypeStatusUpdate,
-		Title:     "Ticket Status Updated",
-		Message:   fmt.Sprintf("Ticket %s status has been updated to %s", ticket.Title, req.Status),
-		Read:      false,
-		CreatedAt: time.Now(),
-		TicketID:  ticket.ID,
+		ID:          primitive.NewObjectID(),
+		UserID:      ticket.CreatedBy,
+		Type:        models.NotificationTypeStatusUpdate,
+		Title:       "Ticket Status Updated",
+		Message:     fmt.Sprintf("Ticket '%s' status has been updated to %s", ticket.Title, req.Status),
+		Read:        false,
+		CreatedAt:   time.Now(),
+		TicketID:    ticket.ID,
+		TicketTitle: ticket.Title,
 	}
 
 	_, err = config.GetCollection("notifications").InsertOne(r.Context(), notification)

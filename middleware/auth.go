@@ -39,12 +39,14 @@ func GenerateJWT(user models.User) (string, error) {
 }
 
 // HashPassword hashes a password using bcrypt
+// it is used while register the user 
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
 }
 
 // CheckPasswordHash compares a password with a hash
+// it is used while login the user
 func CheckPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil

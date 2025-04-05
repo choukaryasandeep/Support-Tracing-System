@@ -29,14 +29,3 @@ type Notification struct {
 	Read        bool               `bson:"read" json:"read"`
 	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
 }
-
-// NotificationPreferences represents user's notification preferences
-type NotificationPreferences struct {
-	UserID             primitive.ObjectID `bson:"user_id" json:"user_id"`
-	EmailNotifications bool               `bson:"email_notifications" json:"email_notifications"`
-	StatusUpdates      bool               `bson:"status_updates" json:"status_updates"`
-	NewComments        bool               `bson:"new_comments" json:"new_comments"`
-	NewTickets         bool               `bson:"new_tickets" json:"new_tickets"`
-	AdminComments      bool               `bson:"admin_comments" json:"admin_comments"`
-	UpdatedAt          time.Time          `bson:"updated_at" json:"updated_at"`
-}
