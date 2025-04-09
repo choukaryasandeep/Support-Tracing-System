@@ -13,6 +13,7 @@ import (
 
 	"github.com/choukaryasandeep/support-ticket-system/config"
 	"github.com/choukaryasandeep/support-ticket-system/models"
+	"github.com/choukaryasandeep/support-ticket-system/services"
 	"github.com/go-chi/chi/v5"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -20,7 +21,8 @@ import (
 )
 
 type TicketController struct {
-	db *mongo.Database
+	db             *mongo.Database
+	commentService *services.CommentService
 }
 
 var TicketAPI TicketController
@@ -354,101 +356,145 @@ func (c *TicketController) GetTicketComments(w http.ResponseWriter, r *http.Requ
 }
 
 // AddComment adds a new comment to a ticket
-func (c *TicketController) AddComment(w http.ResponseWriter, r *http.Request) {
+func (tc *TicketController) AddComment(w http.ResponseWriter, r *http.Request) {
 	ticketID := chi.URLParam(r, "id")
-	var comment struct {
-		Content string `json:"content"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&comment); err != nil {
+	userID := r.Context().Value("user_id").(string)
+	userRole := r.Context().Value("user_role").(string)
+
+	var commentData CommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&commentData); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Get user information from context
-	userIDStr := r.Context().Value("user_id").(string)
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
-	if err != nil {
-		log.Printf("Error converting user ID: %v\n", err)
-		http.Error(w, "Invalid user ID", http.StatusUnauthorized)
+	// Set comment metadata
+	var user models.User
+	userObjID, _ := primitive.ObjectIDFromHex(userID)
+	if err := tc.db.Collection("users").FindOne(r.Context(), bson.M{"_id": userObjID}).Decode(&user); err != nil {
+		http.Error(w, "User not found", http.StatusInternalServerError)
+		return
+	}
+	ticketObjID, _ := primitive.ObjectIDFromHex(ticketID)
+	comment := models.Comment{
+		ID:        primitive.NewObjectID(),
+		TicketID:  ticketObjID,
+		UserID:    userObjID,
+		UserName:  user.Name,
+		Content:   commentData.Content,
+		CreatedAt: time.Now(),
+		Role:      user.Role,
+	}
+
+	// Add comment to ticket
+	if err := tc.commentService.AddComment(ticketID, &comment); err != nil {
+		http.Error(w, "Failed to add comment", http.StatusInternalServerError)
 		return
 	}
 
+	// Get ticket to check if it's assigned
+	var ticket models.Ticket
+	if err := tc.db.Collection("tickets").FindOne(r.Context(), bson.M{"_id": ticketObjID}).Decode(&ticket); err != nil {
+		http.Error(w, "Ticket not found", http.StatusNotFound)
+		return
+	}
+
+	// If admin commented and ticket is assigned, notify the agent
+	if userRole == "admin" && ticket.AssignedTo != nil {
+		notification := models.Notification{
+			ID:        primitive.NewObjectID(),
+			UserID:    *ticket.AssignedTo,
+			Title:     "New Comment on Ticket",
+			Message:   fmt.Sprintf("Admin commented on ticket #%s", ticket.Title),
+			Type:      "comment",
+			TicketID:  ticketObjID,
+			CreatedAt: time.Now(),
+		}
+		if _, err := tc.db.Collection("notifications").InsertOne(r.Context(), notification); err != nil {
+			log.Printf("Failed to create notification: %v", err)
+		}
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(comment)
+}
+
+// DeleteComment deletes a comment from a ticket
+func (tc *TicketController) DeleteComment(w http.ResponseWriter, r *http.Request) {
+	ticketID := chi.URLParam(r, "id")
+	commentID := chi.URLParam(r, "commentId")
+	userID := r.Context().Value("user_id").(string)
 	userRole := r.Context().Value("user_role").(string)
 
-	// First check if the ticket exists and user has access
-	var ticket models.Ticket
-	objID, err := primitive.ObjectIDFromHex(ticketID)
+	// Convert IDs to ObjectID
+	ticketObjID, err := primitive.ObjectIDFromHex(ticketID)
 	if err != nil {
 		http.Error(w, "Invalid ticket ID", http.StatusBadRequest)
 		return
 	}
 
-	if err := config.GetCollection("tickets").FindOne(r.Context(), bson.M{"_id": objID}).Decode(&ticket); err != nil {
+	commentObjID, err := primitive.ObjectIDFromHex(commentID)
+	if err != nil {
+		http.Error(w, "Invalid comment ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get the ticket to check permissions and find the comment
+	var ticket models.Ticket
+	if err := tc.db.Collection("tickets").FindOne(r.Context(), bson.M{"_id": ticketObjID}).Decode(&ticket); err != nil {
 		http.Error(w, "Ticket not found", http.StatusNotFound)
 		return
 	}
 
-	// Check access permissions based on role
-	switch userRole {
-	case "admin":
-		// Admins can comment on all tickets
-	case "agent":
-		// Agents can comment on tickets they created or are assigned to
-		if ticket.CreatedBy != userID && (ticket.AssignedTo == nil || *ticket.AssignedTo != userID) {
-			log.Printf("Agent %s attempted to comment on ticket %s without permission\n", userID.Hex(), ticketID)
-			http.Error(w, "Unauthorized to comment on this ticket", http.StatusForbidden)
-			return
+	// Check if user has permission to delete the comment
+	// Only allow if user is admin, or the comment creator, or the ticket creator
+	userObjID, _ := primitive.ObjectIDFromHex(userID)
+	canDelete := userRole == "admin" || ticket.CreatedBy == userObjID
+
+	// Find the comment to check if user is the creator
+	for _, comment := range ticket.Comments {
+		if comment.ID == commentObjID {
+			if comment.UserID == userObjID {
+				canDelete = true
+			}
+			break
 		}
-	case "user":
-		// Users can only comment on their own tickets
-		if ticket.CreatedBy != userID {
-			log.Printf("User %s attempted to comment on ticket %s without permission\n", userID.Hex(), ticketID)
-			http.Error(w, "Unauthorized to comment on this ticket", http.StatusForbidden)
-			return
-		}
-	default:
-		log.Printf("Invalid user role: %s\n", userRole)
-		http.Error(w, "Invalid user role", http.StatusForbidden)
+	}
+
+	if !canDelete {
+		http.Error(w, "Unauthorized to delete this comment", http.StatusForbidden)
 		return
 	}
 
-	// Get user's name
-	var user models.User
-	if err := config.GetCollection("users").FindOne(r.Context(), bson.M{"_id": userID}).Decode(&user); err != nil {
-		log.Printf("Error fetching user: %v\n", err)
-		http.Error(w, "Error fetching user information", http.StatusInternalServerError)
-		return
-	}
-
-	// Create new comment
-	newComment := models.Comment{
-		ID:        primitive.NewObjectID(),
-		Content:   comment.Content,
-		UserID:    userID,
-		UserName:  user.Name,
-		CreatedAt: time.Now(),
-	}
-
-	result, err := config.GetCollection("tickets").UpdateOne(
+	// Delete the comment from the ticket's comments array
+	result, err := tc.db.Collection("tickets").UpdateOne(
 		r.Context(),
-		bson.M{"_id": objID},
-		bson.M{
-			"$push": bson.M{"comments": newComment},
-			"$set":  bson.M{"updated_at": time.Now()},
-		},
+		bson.M{"_id": ticketObjID},
+		bson.M{"$pull": bson.M{"comments": bson.M{"_id": commentObjID}}},
 	)
 	if err != nil {
-		http.Error(w, "Failed to add comment", http.StatusInternalServerError)
+		http.Error(w, "Failed to delete comment", http.StatusInternalServerError)
 		return
 	}
 
 	if result.ModifiedCount == 0 {
-		http.Error(w, "Ticket not found", http.StatusNotFound)
+		http.Error(w, "Comment not found", http.StatusNotFound)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(newComment)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Comment deleted successfully"})
+}
+
+// GetComments retrieves all comments for a ticket
+func (tc *TicketController) GetComments(w http.ResponseWriter, r *http.Request) {
+	ticketID := chi.URLParam(r, "id")
+	comments, err := tc.commentService.GetComments(ticketID)
+	if err != nil {
+		http.Error(w, "Failed to get comments", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(comments)
 }
 
 // UpdateTicketStatus updates the status of a ticket
@@ -910,5 +956,8 @@ func (tc *TicketController) DeleteAttachment(w http.ResponseWriter, r *http.Requ
 }
 
 func InitControllers(db *mongo.Database) {
-	TicketAPI = TicketController{db: db}
+	TicketAPI = TicketController{
+		db:             db,
+		commentService: services.NewCommentService(db.Collection("tickets")),
+	}
 }

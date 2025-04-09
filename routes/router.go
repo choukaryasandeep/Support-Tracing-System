@@ -243,8 +243,9 @@ func SetupRouter() http.Handler {
 			r.Put("/{id}/status", controllers.TicketAPI.UpdateTicketStatus)
 			r.Put("/{id}/assign", controllers.TicketAPI.AssignTicket)
 			r.Put("/{id}/priority", controllers.TicketAPI.UpdateTicketPriority)
-			r.Get("/{id}/comments", controllers.TicketAPI.GetTicketComments)
+			r.Get("/{id}/comments", controllers.TicketAPI.GetComments)
 			r.Post("/{id}/comments", controllers.TicketAPI.AddComment)
+			r.Delete("/{id}/comments/{commentId}", controllers.TicketAPI.DeleteComment)
 		})
 
 		// API routes for notifications

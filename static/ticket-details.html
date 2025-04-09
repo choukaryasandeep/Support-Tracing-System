@@ -311,9 +311,8 @@
                         <div>
                             <span class="font-medium text-gray-900">${comment.user_name || 'Unknown'}</span>
                             ${isCurrentUser ? '<span class="ml-2 text-xs text-blue-600">(You)</span>' : ''}
-                            ${isAgent ? '<span class="ml-2 text-xs text-green-600">(Agent)</span>' : ''}
-                            ${isAdmin ? '<span class="ml-2 text-xs text-purple-600">(Admin)</span>' : ''}
-                            ${isUser ? '<span class="ml-2 text-xs text-gray-600">(User)</span>' : ''}
+                            <span class="ml-2 text-xs text-blue-600">(${comment.Role})</span>
+                            
                         </div>
                         <span class="text-sm text-gray-500">${new Date(comment.created_at).toLocaleString()}</span>
                     </div>
@@ -371,6 +370,7 @@
 
                 if (response.ok) {
                     await loadComments(currentTicket.id);
+                    showToast("Comment Deleted Successfully..")
                 } else {
                     alert('Failed to delete comment');
                 }
@@ -457,7 +457,8 @@
                 const agents = await response.json();
                 
                 const select = document.getElementById('agentSelect');
-                select.innerHTML = '<option value="">Select an agent</option>';
+                select.innerHTML = '<option value="" disabled selected hidden>Select an agent</option>';
+
                 agents.forEach(agent => {
                     select.innerHTML += `<option value="${agent.id}">${agent.name}</option>`;
                 });
