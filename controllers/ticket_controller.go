@@ -697,6 +697,7 @@ func (c *TicketController) Create(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:   userID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
+		Comments:    []models.Comment{}, // Initialize empty comments array
 	}
 
 	log.Printf("Creating ticket: %+v\n", ticket)

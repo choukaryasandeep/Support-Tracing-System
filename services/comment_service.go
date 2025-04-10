@@ -28,6 +28,17 @@ func (cs *CommentService) AddComment(ticketID string, comment *models.Comment) e
 	comment.ID = primitive.NewObjectID()
 	comment.CreatedAt = time.Now()
 
+	// First, ensure the comments array exists
+	_, err = cs.collection.UpdateOne(
+		context.Background(),
+		bson.M{"_id": ticketObjID},
+		bson.M{"$setOnInsert": bson.M{"comments": []models.Comment{}}},
+	)
+	if err != nil {
+		return err
+	}
+
+	// Then add the comment
 	_, err = cs.collection.UpdateOne(
 		context.Background(),
 		bson.M{"_id": ticketObjID},
