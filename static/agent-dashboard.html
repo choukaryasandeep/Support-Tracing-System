@@ -158,6 +158,7 @@
 
         // Function to fetch notifications
         async function fetchNotifications() {
+            console.log("⏱️ Fetching notifications at", new Date().toLocaleTimeString());
             try {
                 const response = await fetch('/api/notifications');
                 if (!response.ok) throw new Error('Failed to fetch notifications');
@@ -167,7 +168,7 @@
                 console.error('Error fetching notifications:', error);
             }
         }
-
+        setInterval(fetchNotifications, 5000);
         // Function to update notification UI
         function updateNotificationUI() {
             const notificationList = document.getElementById('notificationList');
